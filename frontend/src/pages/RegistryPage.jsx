@@ -286,17 +286,6 @@ const res = await fetch(`/api/business_capabilities/${id}`, {
         </div>
 
         <div className="mb-4 flex items-start flex-wrap sm:flex-nowrap gap-2">
-
-
-          {/* Правая часть: Сортировка */}
-          <div className="ml-auto">
-            <button
-              onClick={() => setSortAsc(prev => !prev)}
-              className="text-textMain border px-3 py-1 rounded hover:bg-gray-100 align-left"
-            >
-              Сортировка: {sortAsc ? "A → Я" : "Я → A"}
-            </button>
-          </div>
           {/* Левая часть: Фильтры */}
           <div className="flex flex-col gap-2">
             <button
