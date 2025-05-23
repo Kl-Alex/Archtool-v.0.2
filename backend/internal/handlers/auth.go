@@ -37,7 +37,7 @@ func LoginHandler(db *sqlx.DB) gin.HandlerFunc {
 			return
 		}
 
-		token, err := utils.GenerateJWT(user.ID)
+		token, err := utils.GenerateJWT(user.ID, user.Username)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при генерации токена"})
 			return
