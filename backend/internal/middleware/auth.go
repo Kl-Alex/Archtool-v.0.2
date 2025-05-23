@@ -17,14 +17,16 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 		}
 
 		token := strings.TrimPrefix(authHeader, "Bearer ")
-		userID, err := utils.ParseJWT(token)
+		userID, username, err := utils.ParseJWT(token)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Недействительный или просроченный токен"})
 			return
 		}
 
-		// Добавляем userID в контекст запроса
+		// Добавляем userID и username в контекст запроса
 		c.Set("userID", userID)
+		c.Set("username", username)
+
 		c.Next()
 	}
 }
