@@ -92,3 +92,22 @@ func CreateAttribute(db *sqlx.DB) gin.HandlerFunc {
 		c.JSON(http.StatusCreated, gin.H{"message": "Атрибут успешно добавлен"})
 	}
 }
+
+// DELETE /api/attributes/:id — удаление атрибута по ID
+func DeleteAttribute(db *sqlx.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		attrID, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID атрибута"})
+			return
+		}
+
+		_, err = db.Exec(`DELETE FROM attributes WHERE id = $1`, attrID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка удаления атрибута"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "Атрибут удалён"})
+	}
+}
