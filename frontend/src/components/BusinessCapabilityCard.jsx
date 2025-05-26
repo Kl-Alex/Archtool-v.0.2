@@ -1,27 +1,46 @@
 import { useEffect, useState } from "react";
 import { getToken } from "../utils/auth";
 
+// Словарь отображаемых названий
+const fieldLabels = {
+  id: "ID",
+  name: "Название",
+  level: "Уровень",
+  description: "Описание",
+  owner: "Владелец",
+  it_domain: "Домен IT",
+  parent_id: "ID родителя",
+  parent_name: "Имя родителя",
+};
 
 const BusinessCapabilityCard = ({ capability, onClose }) => {
+  const [details, setDetails] = useState({});
   const [parentName, setParentName] = useState(null);
 
   useEffect(() => {
-    const fetchParent = async () => {
-      if (!capability?.parent_id) return;
-      try {
-const res = await fetch(`/api/business_capabilities/${capability.parent_id}`, {
-  headers: {
-    Authorization: `Bearer ${getToken()}`,
-  },
-});
+    const fetchDetails = async () => {
+      if (!capability?.id) return;
 
+      try {
+        const res = await fetch(`/api/business_capabilities/${capability.id}`, {
+          headers: { Authorization: `Bearer ${getToken()}` },
+        });
         const data = await res.json();
-        setParentName(data.name);
+        setDetails(data);
+
+        if (data.parent_id) {
+          const parentRes = await fetch(`/api/business_capabilities/${data.parent_id}`, {
+            headers: { Authorization: `Bearer ${getToken()}` },
+          });
+          const parentData = await parentRes.json();
+          setParentName(parentData.name || null);
+        }
       } catch (err) {
-        setParentName(null);
+        console.error("Ошибка загрузки карточки:", err);
       }
     };
-    fetchParent();
+
+    fetchDetails();
   }, [capability]);
 
   if (!capability) return null;
@@ -39,14 +58,22 @@ const res = await fetch(`/api/business_capabilities/${capability.parent_id}`, {
         <h2 className="text-xl font-bold text-lentaBlue mb-4">Карточка бизнес-способности</h2>
 
         <div className="space-y-2 text-sm text-gray-800">
-          <div><strong>Название:</strong> {capability.name}</div>
-          <div><strong>Уровень:</strong> {capability.level}</div>
-          <div><strong>Описание:</strong> {capability.description || "—"}</div>
-          <div><strong>Владелец:</strong> {capability.owner}</div>
-          <div><strong>Домен IT:</strong> {capability.it_domain}</div>
-          <div><strong>Parent ID:</strong> {capability.parent_id || "—"}</div>
-          <div><strong>Имя родителя:</strong> {parentName || "—"}</div>
-          <div><strong>ID:</strong> {capability.id}</div>
+          {Object.entries(details).map(([key, value]) => {
+            if (key === "parent_id") return null; // отдельно
+            const label = fieldLabels[key] || key;
+            return (
+              <div key={key}>
+                <strong>{label}:</strong> {value || "—"}
+              </div>
+            );
+          })}
+
+          {/* Имя родителя отдельно
+          {"parent_id" in details && (
+            <div>
+              <strong>{fieldLabels["parent_name"]}:</strong> {parentName || "—"}
+            </div>
+          )} */}
         </div>
       </div>
     </div>

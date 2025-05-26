@@ -7,7 +7,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jmoiron/sqlx"
 	"archtool-backend/internal/models"
+	"github.com/lib/pq"
+
+
 )
+
 
 // GET /api/object_types
 func GetObjectTypes(db *sqlx.DB) gin.HandlerFunc {
@@ -22,46 +26,69 @@ func GetObjectTypes(db *sqlx.DB) gin.HandlerFunc {
 	}
 }
 
-// GET /api/object_types/:id/attributes
 func GetAttributesByObjectType(db *sqlx.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		objectTypeID, _ := strconv.Atoi(c.Param("id"))
+		objectTypeID, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный ID типа объекта"})
+			return
+		}
+
 		var attrs []models.Attribute
-		err := db.Select(&attrs, "SELECT * FROM attributes WHERE object_type_id = $1", objectTypeID)
+		err = db.Select(&attrs, `
+			SELECT id, object_type_id, name, type
+			FROM attributes
+			WHERE object_type_id = $1
+		`, objectTypeID)
+
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка получения атрибутов"})
 			return
 		}
+
 		c.JSON(http.StatusOK, attrs)
 	}
 }
 
-// POST /api/object_types/:id/attributes
+
+type CreateAttributeInput struct {
+	Name            string   `json:"name"`
+	Type            string   `json:"type"`
+	IsRequired      bool     `json:"is_required"`
+	Options         []string `json:"options"`
+	RefObjectTypeID *int     `json:"ref_object_type"`
+}
+
 func CreateAttribute(db *sqlx.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		objectTypeID, _ := strconv.Atoi(c.Param("id"))
-		var attr models.Attribute
-		if err := c.ShouldBindJSON(&attr); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный формат запроса"})
+		objectTypeID, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный object_type_id"})
 			return
 		}
 
-		query := `
-INSERT INTO attributes (object_type_id, name, type, is_required, options, ref_object_type)
-VALUES (:object_type_id, :name, :type, :is_required, :options, :ref_object_type)
-RETURNING id`
-		attr.ObjectTypeID = objectTypeID
-		stmt, err := db.PrepareNamed(query)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка подготовки запроса"})
-			return
-		}
-		err = stmt.Get(&attr.ID, attr)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка вставки атрибута"})
+		var input CreateAttributeInput
+		if err := c.ShouldBindJSON(&input); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный JSON", "details": err.Error()})
 			return
 		}
 
-		c.JSON(http.StatusOK, attr)
+		if input.Name == "" || input.Type == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Имя и тип обязательны"})
+			return
+		}
+
+		// Преобразуем []string → pq.StringArray
+		_, err = db.Exec(`
+			INSERT INTO attributes (object_type_id, name, type, is_required, options, ref_object_type)
+			VALUES ($1, $2, $3, $4, $5, $6)
+		`, objectTypeID, input.Name, input.Type, input.IsRequired, pq.StringArray(input.Options), input.RefObjectTypeID)
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка создания атрибута", "details": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusCreated, gin.H{"message": "Атрибут успешно добавлен"})
 	}
 }
