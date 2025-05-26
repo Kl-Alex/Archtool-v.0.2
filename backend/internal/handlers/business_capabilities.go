@@ -99,7 +99,19 @@ func GetBusinessCapabilityByID(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-// Создание бизнес-способности
+
+type AttributeInput struct {
+	AttributeID int    `json:"attribute_id"`
+	Value       string `json:"value"`
+}
+
+type CreateObjectInput struct {
+	ObjectTypeID int              `json:"object_type_id"`
+	ParentID     *string          `json:"parent_id"`
+	Level        string           `json:"level"`
+	Attributes   []AttributeInput `json:"attributes"`
+}
+
 func CreateBusinessCapability(c *gin.Context) {
 	dbConn, err := db.Connect()
 	if err != nil {
@@ -108,51 +120,63 @@ func CreateBusinessCapability(c *gin.Context) {
 	}
 	defer dbConn.Close()
 
-	var input map[string]string
+	var input CreateObjectInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input", "details": err.Error()})
 		return
 	}
 
-	objectID := input["id"]
-	if objectID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing ID"})
-		return
-	}
-
-	var objectTypeID int
-	err = dbConn.Get(&objectTypeID, `SELECT id FROM object_types WHERE name = 'Бизнес-способность'`)
+	// Сначала создаём запись объекта (можно в отдельной таблице, если есть)
+	var objectID string
+	err = dbConn.Get(&objectID, `SELECT gen_random_uuid()`) // или используй uuid.NewString() на фронте
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Object type not found"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate ID"})
 		return
 	}
-
-	// Получаем все атрибуты
-	type Attr struct {
-		ID   int    `db:"id"`
-		Name string `db:"name"`
-	}
-	var attrs []Attr
-	dbConn.Select(&attrs, `SELECT id, name FROM attributes WHERE object_type_id = $1`, objectTypeID)
 
 	tx := dbConn.MustBegin()
-	for _, attr := range attrs {
-		val, ok := input[attr.Name]
-		if !ok || val == "" {
-			continue
-		}
+
+	for _, attr := range input.Attributes {
 		_, err := tx.Exec(`
 			INSERT INTO attribute_values (object_type_id, object_id, attribute_id, value_text)
-			VALUES ($1, $2, $3, $4)`, objectTypeID, objectID, attr.ID, val)
+			VALUES ($1, $2, $3, $4)
+		`, input.ObjectTypeID, objectID, attr.AttributeID, attr.Value)
 		if err != nil {
 			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Insert failed"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to insert attribute", "details": err.Error()})
 			return
 		}
 	}
+
+	// Вставка parent_id и level как атрибуты, если нужно:
+	if input.ParentID != nil {
+		_, err := tx.Exec(`
+			INSERT INTO attribute_values (object_type_id, object_id, attribute_id, value_text)
+			SELECT $1, $2, id, $3 FROM attributes WHERE object_type_id = $1 AND name = 'parent_id'
+		`, input.ObjectTypeID, objectID, *input.ParentID)
+		if err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to insert parent_id"})
+			return
+		}
+	}
+
+	if input.Level != "" {
+		_, err := tx.Exec(`
+			INSERT INTO attribute_values (object_type_id, object_id, attribute_id, value_text)
+			SELECT $1, $2, id, $3 FROM attributes WHERE object_type_id = $1 AND name = 'level'
+		`, input.ObjectTypeID, objectID, input.Level)
+		if err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to insert level"})
+			return
+		}
+	}
+
 	tx.Commit()
-	c.JSON(http.StatusCreated, input)
+	c.JSON(http.StatusCreated, gin.H{"id": objectID})
 }
+
 
 // Обновление бизнес-способности
 func UpdateBusinessCapability(c *gin.Context) {

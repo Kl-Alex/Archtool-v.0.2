@@ -1,31 +1,57 @@
 import { useEffect, useState } from "react";
-import { v4 as uuidv4 } from "uuid";
 import { getToken } from "../utils/auth";
 
-
 const BusinessCapabilityForm = ({ onCreated, existingData }) => {
-  const [formData, setFormData] = useState({
-    id: existingData?.id || uuidv4(),
-    name: existingData?.name || "",
-    parent_name: existingData?.parent_name || "",
-    parent_id: existingData?.parent_id || "",
-    owner: existingData?.owner || "",
-    it_domain: existingData?.it_domain || "",
-    description: existingData?.description || "",
-    level: existingData?.level || "L0",
-  });
-
+  const [objectTypeId, setObjectTypeId] = useState(null);
+  const [attributes, setAttributes] = useState([]);
+  const [attributeValues, setAttributeValues] = useState({});
   const [existingCapabilities, setExistingCapabilities] = useState([]);
   const [parentSearch, setParentSearch] = useState("");
   const [filteredParents, setFilteredParents] = useState([]);
+  const [parentInfo, setParentInfo] = useState({
+    parent_id: null,
+    level: "L0",
+  });
+
+  useEffect(() => {
+    const fetchObjectTypeAndAttributes = async () => {
+      const res = await fetch("/api/object_types", {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const types = await res.json();
+      const type = types.find(t => t.name === "Бизнес-способность");
+      if (!type) return;
+
+      setObjectTypeId(type.id);
+
+      const attrRes = await fetch(`/api/object_types/${type.id}/attributes`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const attrs = await attrRes.json();
+      setAttributes(attrs);
+
+      if (existingData && existingData.attribute_values) {
+        const valuesMap = {};
+        existingData.attribute_values.forEach(v => {
+          valuesMap[v.attribute_id] = v.value;
+        });
+        setAttributeValues(valuesMap);
+
+        setParentInfo({
+          parent_id: existingData.parent_id || null,
+          level: existingData.level || "L0",
+        });
+      }
+    };
+
+    fetchObjectTypeAndAttributes();
+  }, [existingData]);
 
   useEffect(() => {
     const fetchCapabilities = async () => {
       const res = await fetch("/api/business_capabilities", {
-  headers: {
-    Authorization: `Bearer ${getToken()}`,
-  },
-});
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
       const data = await res.json();
       setExistingCapabilities(data);
       setFilteredParents(data);
@@ -43,51 +69,46 @@ const BusinessCapabilityForm = ({ onCreated, existingData }) => {
     return "L1";
   };
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+  const handleAttrChange = (attrId, value) => {
+    setAttributeValues(prev => ({ ...prev, [attrId]: value }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     const payload = {
-      ...formData,
-      description: formData.description || null,
-      parent_id: formData.parent_id || null,
-      parent_name: formData.parent_name || null,
+      object_type_id: objectTypeId,
+      parent_id: parentInfo.parent_id || null,
+      level: parentInfo.level,
+      attributes: Object.entries(attributeValues).map(([attrId, value]) => ({
+        attribute_id: parseInt(attrId),
+        value
+      }))
     };
 
-const url = existingData
-  ? `/api/business_capabilities/${formData.id}`
-  : `/api/business_capabilities`;
-
+    const url = existingData
+      ? `/api/business_capabilities/${existingData.id}`
+      : `/api/business_capabilities`;
 
     const method = existingData ? "PUT" : "POST";
-const res = await fetch(url, {
-  method,
-  headers: {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${getToken()}`
-  },
-  body: JSON.stringify(payload),
-});
+
+    const res = await fetch(url, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${getToken()}`
+      },
+      body: JSON.stringify(payload),
+    });
 
     if (res.ok) {
-      onCreated(formData.id);
+      const result = await res.json();
+      onCreated(result.id || existingData.id);
     }
   };
 
   return (
     <form onSubmit={handleSubmit} className="bg-yellow-50 p-4 rounded shadow space-y-2 relative">
-      <input
-        name="name"
-        value={formData.name}
-        onChange={handleChange}
-        placeholder="Название"
-        required
-        className="w-full p-2 border rounded"
-      />
-
       <input
         type="text"
         placeholder="Поиск родителя..."
@@ -108,12 +129,7 @@ const res = await fetch(url, {
           className="px-3 py-1 hover:bg-gray-100 cursor-pointer"
           onClick={() => {
             setParentSearch("");
-            setFormData((prev) => ({
-              ...prev,
-              parent_name: "",
-              parent_id: "",
-              level: "L0",
-            }));
+            setParentInfo({ parent_id: null, level: "L0" });
           }}
         >
           Без родителя (L0)
@@ -124,12 +140,10 @@ const res = await fetch(url, {
             className="px-3 py-1 hover:bg-gray-100 cursor-pointer"
             onClick={() => {
               setParentSearch(cap.name);
-              setFormData((prev) => ({
-                ...prev,
-                parent_name: cap.name,
+              setParentInfo({
                 parent_id: cap.id,
                 level: calculateLevel(cap.level),
-              }));
+              });
             }}
           >
             {cap.name} ({cap.level})
@@ -137,40 +151,25 @@ const res = await fetch(url, {
         ))}
       </div>
 
-      <input type="hidden" name="parent_name" value={formData.parent_name} />
-      <input type="hidden" name="parent_id" value={formData.parent_id} />
-      <input type="hidden" name="level" value={formData.level} />
+      {/* Динамические атрибуты */}
+      {attributes.map(attr => (
+        <input
+          key={attr.id}
+          type="text"
+          value={attributeValues[attr.id] || ""}
+          onChange={(e) => handleAttrChange(attr.id, e.target.value)}
+          placeholder={attr.name}
+          className="w-full p-2 border rounded"
+        />
+      ))}
 
-      <input
-        name="owner"
-        value={formData.owner}
-        onChange={handleChange}
-        placeholder="Владелец"
-        className="w-full p-2 border rounded"
-      />
-      <input
-        name="it_domain"
-        value={formData.it_domain}
-        onChange={handleChange}
-        placeholder="Домен IT"
-        className="w-full p-2 border rounded"
-      />
-      <input
-        name="description"
-        value={formData.description}
-        onChange={handleChange}
-        placeholder="Описание"
-        className="w-full p-2 border rounded"
-      />
-
-        <button
-  id="submit-bc-form"
-  type="submit"
-  className="bg-lentaBlue text-white px-4 py-2 rounded hover:bg-blue-700"
->
-  Сохранить
-</button>
-
+      <button
+        id="submit-bc-form"
+        type="submit"
+        className="bg-lentaBlue text-white px-4 py-2 rounded hover:bg-blue-700"
+      >
+        Сохранить
+      </button>
     </form>
   );
 };

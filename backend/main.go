@@ -62,6 +62,18 @@ func main() {
 	authRoutes.GET("/users", handlers.GetUsers(dbConn))
 	authRoutes.POST("/users/:id/roles", handlers.AssignRoleToUser(dbConn))
 
+	authRoutes.GET("/permissions", handlers.GetAllPermissions(dbConn))
+	authRoutes.GET("/roles/:id/permissions", handlers.GetPermissionsForRole(dbConn))
+	authRoutes.POST("/roles/:id/permissions", handlers.AssignPermissionToRole(dbConn))
+	authRoutes.PUT("/api/permissions/:id", handlers.UpdatePermission(dbConn))
+	authRoutes.DELETE("/api/permissions/:id", handlers.DeletePermission(dbConn))
+
+	authRoutes.DELETE("/roles/:role_id/permissions/:permission_id", handlers.RemovePermissionFromRole(dbConn))
+
+
+
+
+
 
 
 	// Запуск сервера
