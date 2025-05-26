@@ -58,6 +58,8 @@ func main() {
 	authRoutes.GET("/object_types", handlers.GetObjectTypes(dbConn))
     authRoutes.GET("/object_types/:id/attributes", handlers.GetAttributesByObjectType(dbConn))
 	authRoutes.POST("/object_types/:id/attributes", handlers.CreateAttribute(dbConn))
+	authRoutes.DELETE("/attributes/:id", handlers.DeleteAttribute(dbConn))
+
 	authRoutes.GET("/roles", handlers.GetRoles(dbConn))
 	authRoutes.GET("/users", handlers.GetUsers(dbConn))
 	authRoutes.POST("/users/:id/roles", handlers.AssignRoleToUser(dbConn))
@@ -69,9 +71,6 @@ func main() {
 	authRoutes.DELETE("/api/permissions/:id", handlers.DeletePermission(dbConn))
 
 	authRoutes.DELETE("/roles/:role_id/permissions/:permission_id", handlers.RemovePermissionFromRole(dbConn))
-
-
-
 
 
 
