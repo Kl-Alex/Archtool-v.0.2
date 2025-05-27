@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getToken } from "../utils/auth";
 import Sidebar from "../components/Sidebar";
+import Notification from "../components/Notification";
 
 export default function AdminPage() {
   const [tab, setTab] = useState("roles");
@@ -17,13 +18,12 @@ export default function AdminPage() {
   const [selectedObjectType, setSelectedObjectType] = useState("");
 
   const [newAttrName, setNewAttrName] = useState("");
+  const [newAttrDisplayName, setNewAttrDisplayName] = useState("");
   const [newAttrType, setNewAttrType] = useState("string");
   const [newAttrIsRequired, setNewAttrIsRequired] = useState(false);
-  const [newAttrOptions, setNewAttrOptions] = useState("");
-  const [newAttrRefObjectType, setNewAttrRefObjectType] = useState("");
 
   const [rolePermissions, setRolePermissions] = useState([]);
-  const [message, setMessage] = useState("");
+  const [notification, setNotification] = useState(null);
 
   const headers = { Authorization: "Bearer " + getToken() };
 
@@ -55,11 +55,7 @@ export default function AdminPage() {
 
   const fetchAttributesForObjectType = async (objectTypeId) => {
     const res = await fetch(`/api/object_types/${objectTypeId}/attributes`, { headers });
-    if (res.ok) {
-      setAttributes(await res.json());
-    } else {
-      setAttributes([]);
-    }
+    setAttributes(res.ok ? await res.json() : []);
   };
 
   const deleteAttribute = async (attributeId) => {
@@ -67,11 +63,12 @@ export default function AdminPage() {
       method: "DELETE",
       headers,
     });
+
     if (res.ok) {
-      setMessage("✅ Атрибут удалён");
+      setNotification({ type: "success", message: "✅ Атрибут удалён" });
       fetchAttributesForObjectType(selectedObjectType);
     } else {
-      setMessage("❌ Ошибка при удалении атрибута");
+      setNotification({ type: "error", message: "❌ Ошибка при удалении атрибута" });
     }
   };
 
@@ -87,7 +84,10 @@ export default function AdminPage() {
       body: JSON.stringify({ role_id: parseInt(selectedRole) }),
     });
 
-    setMessage(res.ok ? "✅ Роль успешно назначена" : "❌ Ошибка при назначении роли");
+    setNotification({
+      type: res.ok ? "success" : "error",
+      message: res.ok ? "✅ Роль успешно назначена" : "❌ Ошибка при назначении роли",
+    });
   };
 
   const assignPermission = async () => {
@@ -103,10 +103,10 @@ export default function AdminPage() {
     });
 
     if (res.ok) {
-      setMessage("✅ Права назначены роли");
+      setNotification({ type: "success", message: "✅ Права назначены роли" });
       await handleSelectRoleForPermissions(selectedRole);
     } else {
-      setMessage("❌ Ошибка при назначении прав");
+      setNotification({ type: "error", message: "❌ Ошибка при назначении прав" });
     }
   };
 
@@ -125,10 +125,10 @@ export default function AdminPage() {
     });
 
     if (res.ok) {
-      setMessage("✅ Право удалено");
+      setNotification({ type: "success", message: "✅ Право удалено" });
       await handleSelectRoleForPermissions(selectedRole);
     } else {
-      setMessage("❌ Ошибка удаления права");
+      setNotification({ type: "error", message: "❌ Ошибка удаления права" });
     }
   };
 
@@ -145,52 +145,6 @@ export default function AdminPage() {
         </div>
 
         <div className="bg-white p-4 border rounded shadow">
-          {tab === "roles" && (
-            <div className="flex flex-col sm:flex-row gap-4 items-start">
-              <select value={selectedUser} onChange={(e) => setSelectedUser(e.target.value)} className="border p-2 rounded min-w-[200px]">
-                <option value="">Выберите пользователя</option>
-                {users.map((user) => <option key={user.id} value={user.id}>{user.username}</option>)}
-              </select>
-              <select value={selectedRole} onChange={(e) => setSelectedRole(e.target.value)} className="border p-2 rounded min-w-[200px]">
-                <option value="">Выберите роль</option>
-                {roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
-              </select>
-              <button className="bg-lentaBlue text-white px-4 py-2 rounded hover:bg-blue-700" onClick={assignRole}>Назначить</button>
-            </div>
-          )}
-
-          {tab === "permissions" && (
-            <>
-              <div className="flex flex-col sm:flex-row gap-4 items-start">
-                <select value={selectedRole} onChange={(e) => handleSelectRoleForPermissions(e.target.value)} className="border p-2 rounded min-w-[200px]">
-                  <option value="">Выберите роль</option>
-                  {roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
-                </select>
-                <select value={selectedPermission} onChange={(e) => setSelectedPermission(e.target.value)} className="border p-2 rounded min-w-[200px]">
-                  <option value="">Выберите permission</option>
-                  {permissions.map((perm) => (
-                    <option key={perm.id} value={perm.id}>{perm.action}: {perm.resource}</option>
-                  ))}
-                </select>
-                <button className="bg-lentaBlue text-white px-4 py-2 rounded hover:bg-blue-700" onClick={assignPermission}>Назначить</button>
-              </div>
-
-              {rolePermissions.length > 0 && (
-                <div className="mt-6 text-sm">
-                  <h2 className="font-semibold mb-2">Текущие разрешения:</h2>
-                  <ul className="list-disc pl-5 space-y-1">
-                    {rolePermissions.map((perm) => (
-                      <li key={perm.id} className="flex justify-between items-center">
-                        <span>{perm.action}: {perm.resource}</span>
-                        <button onClick={() => removePermissionFromRole(perm.id)} className="text-red-500 hover:underline text-xs ml-4">удалить</button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </>
-          )}
-
           {tab === "attributes" && (
             <div className="flex flex-col gap-4">
               <div className="flex flex-col sm:flex-row gap-4 items-start">
@@ -199,14 +153,14 @@ export default function AdminPage() {
                   {objectTypes.map((ot) => <option key={ot.id} value={ot.id}>{ot.name}</option>)}
                 </select>
 
-                <input type="text" value={newAttrName} onChange={(e) => setNewAttrName(e.target.value)} placeholder="Название атрибута" className="border p-2 rounded" />
+                <input type="text" value={newAttrName} onChange={(e) => setNewAttrName(e.target.value)} placeholder="Техническое имя атрибута" className="border p-2 rounded" />
+
+                <input type="text" value={newAttrDisplayName} onChange={(e) => setNewAttrDisplayName(e.target.value)} placeholder="Человеко-читаемое название" className="border p-2 rounded" />
 
                 <select value={newAttrType} onChange={(e) => setNewAttrType(e.target.value)} className="border p-2 rounded">
                   <option value="string">string</option>
                   <option value="number">number</option>
                   <option value="boolean">boolean</option>
-                  <option value="enum">enum</option>
-                  <option value="ref">ref</option>
                 </select>
 
                 <label className="flex items-center gap-2 text-sm">
@@ -214,27 +168,17 @@ export default function AdminPage() {
                 </label>
               </div>
 
-              <input type="text" value={newAttrOptions} onChange={(e) => setNewAttrOptions(e.target.value)} placeholder="Опции (через запятую)" className="border p-2 rounded" />
-
-              <select value={newAttrRefObjectType} onChange={(e) => setNewAttrRefObjectType(e.target.value)} className="border p-2 rounded">
-                <option value="">Тип-ссылка (для ref)</option>
-                {objectTypes.map((ot) => (
-                  <option key={ot.id} value={ot.id}>{ot.name}</option>
-                ))}
-              </select>
-
               <button className="bg-lentaBlue text-white px-4 py-2 rounded hover:bg-blue-700" onClick={async () => {
-                if (!selectedObjectType || !newAttrName || !newAttrType) {
-                  setMessage("❌ Заполните все поля");
+                if (!selectedObjectType || !newAttrName || !newAttrDisplayName || !newAttrType) {
+                  setNotification({ type: "error", message: "❌ Заполните все поля" });
                   return;
                 }
 
                 const payload = {
                   name: newAttrName,
+                  display_name: newAttrDisplayName,
                   type: newAttrType,
-                  is_required: newAttrIsRequired,
-                  options: newAttrOptions.split(",").map(s => s.trim()).filter(Boolean),
-                  ref_object_type: newAttrRefObjectType ? parseInt(newAttrRefObjectType) : null
+                  is_required: newAttrIsRequired
                 };
 
                 const res = await fetch(`/api/object_types/${selectedObjectType}/attributes`, {
@@ -247,15 +191,14 @@ export default function AdminPage() {
                 });
 
                 if (res.ok) {
-                  setMessage("✅ Атрибут успешно добавлен");
+                  setNotification({ type: "success", message: "✅ Атрибут успешно добавлен" });
                   setNewAttrName("");
+                  setNewAttrDisplayName("");
                   setNewAttrType("string");
                   setNewAttrIsRequired(false);
-                  setNewAttrOptions("");
-                  setNewAttrRefObjectType("");
                   fetchAttributesForObjectType(selectedObjectType);
                 } else {
-                  setMessage("❌ Ошибка при добавлении атрибута");
+                  setNotification({ type: "error", message: "❌ Ошибка при добавлении атрибута" });
                 }
               }}>Добавить атрибут</button>
 
@@ -265,13 +208,8 @@ export default function AdminPage() {
                   <ul className="list-disc pl-5 space-y-1">
                     {attributes.map(attr => (
                       <li key={attr.id} className="flex justify-between items-center">
-                        <span>{attr.name} ({attr.type})</span>
-                        <button
-                          onClick={() => deleteAttribute(attr.id)}
-                          className="text-red-500 hover:underline text-xs ml-4"
-                        >
-                          удалить
-                        </button>
+                        <span>{attr.display_name} ({attr.type})</span>
+                        <button onClick={() => deleteAttribute(attr.id)} className="text-red-500 hover:underline text-xs ml-4">удалить</button>
                       </li>
                     ))}
                   </ul>
@@ -280,7 +218,13 @@ export default function AdminPage() {
             </div>
           )}
 
-          {message && <p className="text-green-600 mt-4 font-semibold">{message}</p>}
+          {notification && (
+            <Notification
+              type={notification.type}
+              message={notification.message}
+              onClose={() => setNotification(null)}
+            />
+          )}
         </div>
       </main>
     </div>

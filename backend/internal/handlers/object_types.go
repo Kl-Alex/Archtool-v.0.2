@@ -3,15 +3,12 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"log"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jmoiron/sqlx"
 	"archtool-backend/internal/models"
-	"github.com/lib/pq"
-
-
 )
-
 
 // GET /api/object_types
 func GetObjectTypes(db *sqlx.DB) gin.HandlerFunc {
@@ -36,12 +33,13 @@ func GetAttributesByObjectType(db *sqlx.DB) gin.HandlerFunc {
 
 		var attrs []models.Attribute
 		err = db.Select(&attrs, `
-			SELECT id, object_type_id, name, type
+			SELECT id, object_type_id, name, display_name, type, is_required
 			FROM attributes
 			WHERE object_type_id = $1
 		`, objectTypeID)
 
 		if err != nil {
+			log.Println("Ошибка получения атрибутов:", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка получения атрибутов"})
 			return
 		}
@@ -50,13 +48,11 @@ func GetAttributesByObjectType(db *sqlx.DB) gin.HandlerFunc {
 	}
 }
 
-
 type CreateAttributeInput struct {
-	Name            string   `json:"name"`
-	Type            string   `json:"type"`
-	IsRequired      bool     `json:"is_required"`
-	Options         []string `json:"options"`
-	RefObjectTypeID *int     `json:"ref_object_type"`
+	Name        string `json:"name"`
+	DisplayName string `json:"display_name"`
+	Type        string `json:"type"`
+	IsRequired  bool   `json:"is_required"`
 }
 
 func CreateAttribute(db *sqlx.DB) gin.HandlerFunc {
@@ -78,11 +74,10 @@ func CreateAttribute(db *sqlx.DB) gin.HandlerFunc {
 			return
 		}
 
-		// Преобразуем []string → pq.StringArray
 		_, err = db.Exec(`
-			INSERT INTO attributes (object_type_id, name, type, is_required, options, ref_object_type)
-			VALUES ($1, $2, $3, $4, $5, $6)
-		`, objectTypeID, input.Name, input.Type, input.IsRequired, pq.StringArray(input.Options), input.RefObjectTypeID)
+			INSERT INTO attributes (object_type_id, name, display_name, type, is_required)
+			VALUES ($1, $2, $3, $4, $5)
+		`, objectTypeID, input.Name, input.DisplayName, input.Type, input.IsRequired)
 
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка создания атрибута", "details": err.Error()})
@@ -109,5 +104,68 @@ func DeleteAttribute(db *sqlx.DB) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, gin.H{"message": "Атрибут удалён"})
+	}
+}
+
+type SetAttributeValueInput struct {
+	Value string `json:"value"` // всегда строка из JSON — будем кастовать
+}
+
+func SetAttributeValue(db *sqlx.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		objectID := c.Param("object_id")
+		attrID, err := strconv.Atoi(c.Param("attribute_id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный attribute_id"})
+			return
+		}
+
+		var input SetAttributeValueInput
+		if err := c.ShouldBindJSON(&input); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный JSON", "details": err.Error()})
+			return
+		}
+
+		// 1. Получаем тип атрибута
+		var attrType string
+		err = db.Get(&attrType, "SELECT type FROM attributes WHERE id = $1", attrID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось получить тип атрибута"})
+			return
+		}
+
+		// 2. Валидация
+		switch attrType {
+		case "number":
+			if _, err := strconv.ParseFloat(input.Value, 64); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Значение должно быть числом"})
+				return
+			}
+		case "boolean":
+			if input.Value != "true" && input.Value != "false" {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Значение должно быть true или false"})
+				return
+			}
+		case "string":
+			// always valid
+		default:
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Неизвестный тип атрибута"})
+			return
+		}
+
+		// 3. Сохраняем
+		_, err = db.Exec(`
+			INSERT INTO attribute_values (object_id, attribute_id, object_type_id, value_text)
+			VALUES ($1, $2, (SELECT object_type_id FROM attributes WHERE id = $2), $3)
+			ON CONFLICT (object_id, attribute_id)
+			DO UPDATE SET value_text = EXCLUDED.value_text
+		`, objectID, attrID, input.Value)
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка сохранения значения", "details": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "Значение успешно сохранено"})
 	}
 }

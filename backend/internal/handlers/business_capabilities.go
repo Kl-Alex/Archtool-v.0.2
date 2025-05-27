@@ -5,6 +5,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"net/http"
+	"strconv"
 )
 
 // Получение всех бизнес-способностей (через attribute_values)
@@ -137,16 +138,54 @@ func CreateBusinessCapability(c *gin.Context) {
 	tx := dbConn.MustBegin()
 
 	for _, attr := range input.Attributes {
-		_, err := tx.Exec(`
-			INSERT INTO attribute_values (object_type_id, object_id, attribute_id, value_text)
-			VALUES ($1, $2, $3, $4)
-		`, input.ObjectTypeID, objectID, attr.AttributeID, attr.Value)
-		if err != nil {
+	// Получаем тип и опции атрибута
+var attrType string
+err := dbConn.QueryRowx(`
+	SELECT type FROM attributes WHERE id = $1
+`, attr.AttributeID).Scan(&attrType)
+
+
+	if err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Атрибут не найден или ошибка при получении", "attr_id": attr.AttributeID})
+		return
+	}
+
+	// Валидация по типу
+	switch attrType {
+	case "number":
+		if _, err := strconv.ParseFloat(attr.Value, 64); err != nil {
 			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to insert attribute", "details": err.Error()})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Атрибут должен быть числом", "attr_id": attr.AttributeID})
 			return
 		}
+	case "boolean":
+		if attr.Value != "true" && attr.Value != "false" {
+			tx.Rollback()
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Атрибут должен быть true или false", "attr_id": attr.AttributeID})
+			return
+		}
+	case "string":
+		// ОК, ничего не проверяем
+	default:
+		tx.Rollback()
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неизвестный тип атрибута", "attr_id": attr.AttributeID})
+		return
 	}
+
+	// Сохраняем
+	_, err = tx.Exec(`
+		INSERT INTO attribute_values (object_type_id, object_id, attribute_id, value_text)
+		VALUES ($1, $2, $3, $4)
+	`, input.ObjectTypeID, objectID, attr.AttributeID, attr.Value)
+
+	if err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка сохранения атрибута", "attr_id": attr.AttributeID})
+		return
+	}
+}
+
 
 	// Вставка parent_id и level как атрибуты, если нужно:
 	if input.ParentID != nil {
