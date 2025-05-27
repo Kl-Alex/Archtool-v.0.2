@@ -71,6 +71,7 @@ func main() {
 	authRoutes.DELETE("/api/permissions/:id", handlers.DeletePermission(dbConn))
 
 	authRoutes.DELETE("/roles/:role_id/permissions/:permission_id", handlers.RemovePermissionFromRole(dbConn))
+	authRoutes.POST("/api/objects/:object_id/attributes/:attribute_id/value", handlers.SetAttributeValue(dbConn))
 
 
 

@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, forwardRef, useImperativeHandle } from "react";
 import { getToken } from "../utils/auth";
 
-const BusinessCapabilityForm = ({ onCreated, existingData }) => {
+const BusinessCapabilityForm = forwardRef(({ onCreated, existingData }, ref) => {
   const [objectTypeId, setObjectTypeId] = useState(null);
   const [attributes, setAttributes] = useState([]);
   const [attributeValues, setAttributeValues] = useState({});
@@ -73,9 +73,7 @@ const BusinessCapabilityForm = ({ onCreated, existingData }) => {
     setAttributeValues(prev => ({ ...prev, [attrId]: value }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
+  const handleSubmit = async () => {
     const payload = {
       object_type_id: objectTypeId,
       parent_id: parentInfo.parent_id || null,
@@ -107,8 +105,16 @@ const BusinessCapabilityForm = ({ onCreated, existingData }) => {
     }
   };
 
+  useImperativeHandle(ref, () => ({
+    submit: handleSubmit
+  }));
+
+  const filteredAttributes = attributes.filter(
+    attr => !["parent_id", "parent_name", "level"].includes(attr.name)
+  );
+
   return (
-    <form onSubmit={handleSubmit} className="bg-yellow-50 p-4 rounded shadow space-y-2 relative">
+    <form className="bg-yellow-50 p-4 rounded shadow space-y-2 relative">
       <input
         type="text"
         placeholder="Поиск родителя..."
@@ -152,26 +158,19 @@ const BusinessCapabilityForm = ({ onCreated, existingData }) => {
       </div>
 
       {/* Динамические атрибуты */}
-      {attributes.map(attr => (
-        <input
-          key={attr.id}
-          type="text"
-          value={attributeValues[attr.id] || ""}
-          onChange={(e) => handleAttrChange(attr.id, e.target.value)}
-          placeholder={attr.name}
-          className="w-full p-2 border rounded"
-        />
+      {filteredAttributes.map(attr => (
+        <div key={attr.id} className="flex flex-col">
+          <label className="text-sm font-medium text-gray-700 mb-1">{attr.display_name}</label>
+          <input
+            type="text"
+            value={attributeValues[attr.id] || ""}
+            onChange={(e) => handleAttrChange(attr.id, e.target.value)}
+            className="w-full p-2 border rounded"
+          />
+        </div>
       ))}
-
-      <button
-        id="submit-bc-form"
-        type="submit"
-        className="bg-lentaBlue text-white px-4 py-2 rounded hover:bg-blue-700"
-      >
-        Сохранить
-      </button>
     </form>
   );
-};
-
+});
 export default BusinessCapabilityForm;
+

@@ -33,6 +33,8 @@ const RegistryPage = () => {
   const [filterDomain, setFilterDomain] = useState("");
   const [sortAsc, setSortAsc] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
+  const createFormRef = useRef();
+
     useHotkeys('esc', () => {
     setShowCreateModal(false);
     setShowEditModal(false);
@@ -359,17 +361,22 @@ const res = await fetch(`/api/business_capabilities/${id}`, {
           )}
         </div>
 
+
         {showCreateModal && (
-          <CreateModal
-            title="Создание бизнес-способности"
-            onClose={() => setShowCreateModal(false)}
-            onSubmit={() => {
-              const btn = document.getElementById("submit-bc-form");
-              if (btn) btn.click();
-            }}
-          >
-            <BusinessCapabilityForm onCreated={handleCreatedOrUpdated} />
-          </CreateModal>
+<CreateModal
+  title="Создание бизнес-способности"
+  onClose={() => setShowCreateModal(false)}
+  onSubmit={() => {
+    if (createFormRef.current) {
+      createFormRef.current.submit();
+    }
+  }}
+>
+  <BusinessCapabilityForm
+    ref={createFormRef}
+    onCreated={handleCreatedOrUpdated}
+  />
+</CreateModal>
         )}
 
         {showEditModal && editingItem && (
