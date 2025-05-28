@@ -8,8 +8,7 @@ import (
 	"strconv"
 )
 
-// Получение всех бизнес-способностей (через attribute_values)
-func GetBusinessCapabilities(c *gin.Context) {
+func GetApplications(c *gin.Context) {
 	dbConn, err := db.Connect()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "DB error"})
@@ -18,7 +17,7 @@ func GetBusinessCapabilities(c *gin.Context) {
 	defer dbConn.Close()
 
 	var objectTypeID int
-	err = dbConn.Get(&objectTypeID, `SELECT id FROM object_types WHERE name = 'Бизнес-способность'`)
+	err = dbConn.Get(&objectTypeID, `SELECT id FROM object_types WHERE name = 'Приложение'`)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Object type not found"})
 		return
@@ -58,8 +57,7 @@ func GetBusinessCapabilities(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-// Получение бизнес-способности по ID
-func GetBusinessCapabilityByID(c *gin.Context) {
+func GetApplicationByID(c *gin.Context) {
 	dbConn, err := db.Connect()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "DB error"})
@@ -75,7 +73,7 @@ func GetBusinessCapabilityByID(c *gin.Context) {
 	}
 
 	var objectTypeID int
-	err = dbConn.Get(&objectTypeID, `SELECT id FROM object_types WHERE name = 'Бизнес-способность'`)
+	err = dbConn.Get(&objectTypeID, `SELECT id FROM object_types WHERE name = 'Приложение'`)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Object type not found"})
 		return
@@ -100,7 +98,7 @@ func GetBusinessCapabilityByID(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-func CreateBusinessCapability(c *gin.Context) {
+func CreateApplication(c *gin.Context) {
 	dbConn, err := db.Connect()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "DB error"})
@@ -128,7 +126,7 @@ func CreateBusinessCapability(c *gin.Context) {
 		err := dbConn.QueryRowx(`SELECT type FROM attributes WHERE id = $1`, attr.AttributeID).Scan(&attrType)
 		if err != nil {
 			tx.Rollback()
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Атрибут не найден или ошибка при получении", "attr_id": attr.AttributeID})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Атрибут не найден", "attr_id": attr.AttributeID})
 			return
 		}
 
@@ -136,54 +134,23 @@ func CreateBusinessCapability(c *gin.Context) {
 		case "number":
 			if _, err := strconv.ParseFloat(attr.Value, 64); err != nil {
 				tx.Rollback()
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Атрибут должен быть числом", "attr_id": attr.AttributeID})
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Должно быть числом", "attr_id": attr.AttributeID})
 				return
 			}
 		case "boolean":
 			if attr.Value != "true" && attr.Value != "false" {
 				tx.Rollback()
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Атрибут должен быть true или false", "attr_id": attr.AttributeID})
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Должно быть true/false", "attr_id": attr.AttributeID})
 				return
 			}
-		case "string":
-			// допустимо
-		default:
-			tx.Rollback()
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Неизвестный тип атрибута", "attr_id": attr.AttributeID})
-			return
 		}
 
 		_, err = tx.Exec(`
 			INSERT INTO attribute_values (object_type_id, object_id, attribute_id, value_text)
-			VALUES ($1, $2, $3, $4)
-		`, input.ObjectTypeID, objectID, attr.AttributeID, attr.Value)
+			VALUES ($1, $2, $3, $4)`, input.ObjectTypeID, objectID, attr.AttributeID, attr.Value)
 		if err != nil {
 			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка сохранения атрибута", "attr_id": attr.AttributeID})
-			return
-		}
-	}
-
-	if input.ParentID != nil {
-		_, err := tx.Exec(`
-			INSERT INTO attribute_values (object_type_id, object_id, attribute_id, value_text)
-			SELECT $1, $2, id, $3 FROM attributes WHERE object_type_id = $1 AND name = 'parent_id'
-		`, input.ObjectTypeID, objectID, *input.ParentID)
-		if err != nil {
-			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to insert parent_id"})
-			return
-		}
-	}
-
-	if input.Level != "" {
-		_, err := tx.Exec(`
-			INSERT INTO attribute_values (object_type_id, object_id, attribute_id, value_text)
-			SELECT $1, $2, id, $3 FROM attributes WHERE object_type_id = $1 AND name = 'level'
-		`, input.ObjectTypeID, objectID, input.Level)
-		if err != nil {
-			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to insert level"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка сохранения атрибута"})
 			return
 		}
 	}
@@ -192,7 +159,7 @@ func CreateBusinessCapability(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"id": objectID})
 }
 
-func UpdateBusinessCapability(c *gin.Context) {
+func UpdateApplication(c *gin.Context) {
 	dbConn, err := db.Connect()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "DB error"})
@@ -208,7 +175,7 @@ func UpdateBusinessCapability(c *gin.Context) {
 	}
 
 	var objectTypeID int
-	err = dbConn.Get(&objectTypeID, `SELECT id FROM object_types WHERE name = 'Бизнес-способность'`)
+	err = dbConn.Get(&objectTypeID, `SELECT id FROM object_types WHERE name = 'Приложение'`)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Object type not found"})
 		return
@@ -242,7 +209,7 @@ func UpdateBusinessCapability(c *gin.Context) {
 	c.JSON(http.StatusOK, input)
 }
 
-func DeleteBusinessCapability(c *gin.Context) {
+func DeleteApplication(c *gin.Context) {
 	dbConn, err := db.Connect()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "DB error"})

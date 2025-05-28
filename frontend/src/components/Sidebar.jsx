@@ -22,26 +22,28 @@ const Sidebar = () => {
           <li>
             <Link to="/registry" className="hover:underline">Бизнес-способности</Link>
           </li>
+          <li>
+            <Link to="/applications" className="hover:underline">Реестр приложений</Link> {/* ✅ добавлено */}
+          </li>
         </ul>
       </div>
 
-{username && (
-  <div className="text-sm mt-6 border-t border-white pt-4 flex flex-col gap-2">
-    <div>
-      Вы вошли как: <span className="font-semibold">{username}</span>
-    </div>
-    <button
-      onClick={() => {
-        removeToken();
-        navigate("/login");
-      }}
-      className="text-red-200 hover:text-white text-left"
-    >
-      Выйти
-    </button>
-  </div>
-)}
-
+      {username && (
+        <div className="text-sm mt-6 border-t border-white pt-4 flex flex-col gap-2">
+          <div>
+            Вы вошли как: <span className="font-semibold">{username}</span>
+          </div>
+          <button
+            onClick={() => {
+              removeToken();
+              navigate("/login");
+            }}
+            className="text-red-200 hover:text-white text-left"
+          >
+            Выйти
+          </button>
+        </div>
+      )}
     </aside>
   );
 };

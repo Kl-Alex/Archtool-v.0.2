@@ -1,4 +1,9 @@
 const CreateModal = ({ title, children, onClose, onSubmit, submitLabel = "Создать" }) => {
+  const handleSubmit = async () => {
+    const result = await onSubmit?.();
+    if (result !== false) onClose(); // Закрываем, если не вернулось строго false
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center px-4">
       <div className="relative bg-white rounded-xl w-full max-w-xl p-6 shadow-2xl animate-fade-in">
@@ -22,7 +27,7 @@ const CreateModal = ({ title, children, onClose, onSubmit, submitLabel = "Соз
           </button>
           <button
             className="px-4 py-2 rounded bg-lentaBlue text-white hover:bg-blue-700"
-            onClick={onSubmit}
+            onClick={handleSubmit}
           >
             {submitLabel}
           </button>
