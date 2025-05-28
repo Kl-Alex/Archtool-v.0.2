@@ -29,7 +29,14 @@ func main() {
 	defer dbConn.Close()
 
 	router := gin.Default()
-	router.Use(cors.Default())
+	router.Use(cors.New(cors.Config{
+    AllowOrigins:     []string{"http://localhost:5173"},
+    AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+    AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+    ExposeHeaders:    []string{"Content-Length"},
+    AllowCredentials: true,
+}))
+
 
 	// Пинг
 	router.GET("/api/ping", func(c *gin.Context) {
@@ -67,13 +74,19 @@ func main() {
 	authRoutes.GET("/permissions", handlers.GetAllPermissions(dbConn))
 	authRoutes.GET("/roles/:id/permissions", handlers.GetPermissionsForRole(dbConn))
 	authRoutes.POST("/roles/:id/permissions", handlers.AssignPermissionToRole(dbConn))
-	authRoutes.PUT("/api/permissions/:id", handlers.UpdatePermission(dbConn))
-	authRoutes.DELETE("/api/permissions/:id", handlers.DeletePermission(dbConn))
+	authRoutes.PUT("/permissions/:id", handlers.UpdatePermission(dbConn))
+	authRoutes.DELETE("/permissions/:id", handlers.DeletePermission(dbConn))
 
 	authRoutes.DELETE("/roles/:role_id/permissions/:permission_id", handlers.RemovePermissionFromRole(dbConn))
-	authRoutes.POST("/api/objects/:object_id/attributes/:attribute_id/value", handlers.SetAttributeValue(dbConn))
+	authRoutes.POST("/objects/:object_id/attributes/:attribute_id/value", handlers.SetAttributeValue(dbConn))
 
 
+
+	authRoutes.GET("/applications", handlers.GetApplications)
+	authRoutes.GET("/applications/:id", handlers.GetApplicationByID)
+	authRoutes.POST("/applications", handlers.CreateApplication)
+	authRoutes.PUT("/applications/:id", handlers.UpdateApplication )
+	authRoutes.DELETE("/applications/:id", handlers.DeleteApplication)
 
 
 	// Запуск сервера

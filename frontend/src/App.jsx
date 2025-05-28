@@ -2,29 +2,40 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import RegistryPage from "./pages/RegistryPage";
 import LoginPage from "./pages/LoginPage";
 import ProtectedRoute from "./components/ProtectedRoute";
-import AdminPage from "./pages/AdminPage"; // добавим после
+import AdminPage from "./pages/AdminPage";
+import ApplicationsRegistryPage from "./pages/ApplicationsRegistryPage"; // ⬅️ добавили
+
+import { NotificationProvider } from "./components/NotificationContext";
 
 function App() {
   return (
-    <Router>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
+    <NotificationProvider>
+      <Router>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
 
-        <Route path="/registry" element={
-          <ProtectedRoute>
-            <RegistryPage />
-          </ProtectedRoute>
-        } />
+          <Route path="/registry" element={
+            <ProtectedRoute>
+              <RegistryPage />
+            </ProtectedRoute>
+          } />
 
-        <Route path="/admin" element={
-          <ProtectedRoute>
-            <AdminPage />
-          </ProtectedRoute>
-        } />
+          <Route path="/applications" element={  // ⬅️ добавили
+            <ProtectedRoute>
+              <ApplicationsRegistryPage />
+            </ProtectedRoute>
+          } />
 
-        <Route path="*" element={<Navigate to="/registry" />} />
-      </Routes>
-    </Router>
+          <Route path="/admin" element={
+            <ProtectedRoute>
+              <AdminPage />
+            </ProtectedRoute>
+          } />
+
+          <Route path="*" element={<Navigate to="/registry" />} />
+        </Routes>
+      </Router>
+    </NotificationProvider>
   );
 }
 

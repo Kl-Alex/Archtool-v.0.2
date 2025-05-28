@@ -13,6 +13,9 @@ import DomainCombobox from "../components/DomainCombobox";
 import { useHotkeys } from 'react-hotkeys-hook';
 import { useRef } from 'react';
 import { getToken } from "../utils/auth";
+import { useNotification } from "../components/NotificationContext";
+
+
 
 
 
@@ -42,18 +45,22 @@ const RegistryPage = () => {
   });
 
 
-  const fetchData = async () => {
-    setLoading(true);
+  const { notifyError, notifySuccess } = useNotification();
+
+
+const fetchData = async () => {
+  setLoading(true);
+  try {
     const token = localStorage.getItem("token");
     const res = await fetch("/api/business_capabilities", {
-  headers: {
-    Authorization: `Bearer ${token}`,
-  },
-});
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!res.ok) throw new Error("Ошибка загрузки данных");
+
     const data = await res.json();
     setCapabilities(data);
 
-    // Инициализируем свернутое состояние дерева
     const collapsedMap = {};
     data.forEach(item => {
       collapsedMap[item.id] = false;
@@ -64,32 +71,43 @@ const RegistryPage = () => {
       level: filterLevel,
       owner: filterOwner,
       domain: filterDomain,
-      sortAsc
+      sortAsc,
     }));
+  } catch (error) {
+    notifyError(error.message);
+  } finally {
     setLoading(false);
-  };
+  }
+};
 
   const handleCreatedOrUpdated = async (id) => {
     const prevOpen = { ...openMap };
     await fetchData();
     setOpenMap(prevOpen);
     setHighlightedId(id);
+    notifySuccess("Бизнес-способность сохранена");
     setTimeout(() => setHighlightedId(null), 5000);
   };
 
-  const handleDelete = async (id) => {
-    const confirmed = window.confirm("Вы уверены, что хотите удалить эту бизнес-способность?");
-    if (!confirmed) return;
-const res = await fetch(`/api/business_capabilities/${id}`, {
-  method: "DELETE",
-  headers: {
-    Authorization: `Bearer ${getToken()}`,
-  },
-});
+const handleDelete = async (id) => {
+  const confirmed = window.confirm("Вы уверены, что хотите удалить эту бизнес-способность?");
+  if (!confirmed) return;
 
-    if (res.ok) fetchData();
-    else alert("Ошибка при удалении");
-  };
+  const res = await fetch(`/api/business_capabilities/${id}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${getToken()}`,
+    },
+  });
+
+  if (res.ok) {
+    notifySuccess("Бизнес-способность удалена");
+    fetchData();
+  } else {
+    notifyError("Ошибка при удалении");
+  }
+};
+
 
   useEffect(() => {
     fetchData();
@@ -365,7 +383,10 @@ const res = await fetch(`/api/business_capabilities/${id}`, {
         {showCreateModal && (
 <CreateModal
   title="Создание бизнес-способности"
-  onClose={() => setShowCreateModal(false)}
+  onClose={() => {
+  setShowCreateModal(false); // или setShowEditModal(false)
+}}
+
   onSubmit={() => {
     if (createFormRef.current) {
       createFormRef.current.submit();

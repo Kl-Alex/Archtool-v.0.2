@@ -25,15 +25,17 @@ export default function AdminPage() {
   const [rolePermissions, setRolePermissions] = useState([]);
   const [notification, setNotification] = useState(null);
 
-  const headers = { Authorization: "Bearer " + getToken() };
+  const getAuthHeaders = () => ({
+    Authorization: "Bearer " + getToken(),
+  });
 
   useEffect(() => {
     const fetchData = async () => {
       const [usersRes, rolesRes, permsRes, typesRes] = await Promise.all([
-        fetch("/api/users", { headers }),
-        fetch("/api/roles", { headers }),
-        fetch("/api/permissions", { headers }),
-        fetch("/api/object_types", { headers }),
+        fetch("/api/users", { headers: getAuthHeaders() }),
+        fetch("/api/roles", { headers: getAuthHeaders() }),
+        fetch("/api/permissions", { headers: getAuthHeaders() }),
+        fetch("/api/object_types", { headers: getAuthHeaders() }),
       ]);
 
       if (usersRes.ok) setUsers(await usersRes.json());
@@ -54,14 +56,14 @@ export default function AdminPage() {
   }, [selectedObjectType]);
 
   const fetchAttributesForObjectType = async (objectTypeId) => {
-    const res = await fetch(`/api/object_types/${objectTypeId}/attributes`, { headers });
+    const res = await fetch(`/api/object_types/${objectTypeId}/attributes`, { headers: getAuthHeaders() });
     setAttributes(res.ok ? await res.json() : []);
   };
 
   const deleteAttribute = async (attributeId) => {
     const res = await fetch(`/api/attributes/${attributeId}`, {
       method: "DELETE",
-      headers,
+      headers: getAuthHeaders(),
     });
 
     if (res.ok) {
@@ -78,7 +80,7 @@ export default function AdminPage() {
     const res = await fetch(`/api/users/${selectedUser}/roles`, {
       method: "POST",
       headers: {
-        ...headers,
+        ...getAuthHeaders(),
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ role_id: parseInt(selectedRole) }),
@@ -96,7 +98,7 @@ export default function AdminPage() {
     const res = await fetch(`/api/roles/${selectedRole}/permissions`, {
       method: "POST",
       headers: {
-        ...headers,
+        ...getAuthHeaders(),
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ permission_id: parseInt(selectedPermission) }),
@@ -114,14 +116,14 @@ export default function AdminPage() {
     setSelectedRole(roleId);
     if (!roleId) return setRolePermissions([]);
 
-    const res = await fetch(`/api/roles/${roleId}/permissions`, { headers });
+    const res = await fetch(`/api/roles/${roleId}/permissions`, { headers: getAuthHeaders() });
     setRolePermissions(res.ok ? await res.json() : []);
   };
 
   const removePermissionFromRole = async (permissionId) => {
     const res = await fetch(`/api/roles/${selectedRole}/permissions/${permissionId}`, {
       method: "DELETE",
-      headers,
+      headers: getAuthHeaders(),
     });
 
     if (res.ok) {
@@ -129,6 +131,40 @@ export default function AdminPage() {
       await handleSelectRoleForPermissions(selectedRole);
     } else {
       setNotification({ type: "error", message: "❌ Ошибка удаления права" });
+    }
+  };
+
+  const addAttribute = async () => {
+    if (!selectedObjectType || !newAttrName || !newAttrDisplayName || !newAttrType) {
+      setNotification({ type: "error", message: "❌ Заполните все поля" });
+      return;
+    }
+
+    const payload = {
+      name: newAttrName,
+      display_name: newAttrDisplayName,
+      type: newAttrType,
+      is_required: newAttrIsRequired,
+    };
+
+    const res = await fetch(`/api/object_types/${selectedObjectType}/attributes`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (res.ok) {
+      setNotification({ type: "success", message: "✅ Атрибут успешно добавлен" });
+      setNewAttrName("");
+      setNewAttrDisplayName("");
+      setNewAttrType("string");
+      setNewAttrIsRequired(false);
+      fetchAttributesForObjectType(selectedObjectType);
+    } else {
+      setNotification({ type: "error", message: "❌ Ошибка при добавлении атрибута" });
     }
   };
 
@@ -145,6 +181,52 @@ export default function AdminPage() {
         </div>
 
         <div className="bg-white p-4 border rounded shadow">
+          {tab === "roles" && (
+            <div className="flex gap-4 items-start">
+              <select value={selectedUser} onChange={(e) => setSelectedUser(e.target.value)} className="border p-2 rounded">
+                <option value="">Выберите пользователя</option>
+                {users.map(user => (
+                  <option key={user.id} value={user.id}>{user.username}</option>
+                ))}
+              </select>
+              <select value={selectedRole} onChange={(e) => setSelectedRole(e.target.value)} className="border p-2 rounded">
+                <option value="">Выберите роль</option>
+                {roles.map(role => (
+                  <option key={role.id} value={role.id}>{role.name}</option>
+                ))}
+              </select>
+              <button onClick={assignRole} className="bg-lentaBlue text-white px-4 py-2 rounded hover:bg-blue-700">Назначить</button>
+            </div>
+          )}
+
+          {tab === "permissions" && (
+            <div className="flex flex-col gap-4 items-start">
+              <select value={selectedRole} onChange={(e) => handleSelectRoleForPermissions(e.target.value)} className="border p-2 rounded">
+                <option value="">Выберите роль</option>
+                {roles.map(role => (
+                  <option key={role.id} value={role.id}>{role.name}</option>
+                ))}
+              </select>
+              <select value={selectedPermission} onChange={(e) => setSelectedPermission(e.target.value)} className="border p-2 rounded">
+                <option value="">Выберите право</option>
+                {permissions.map(perm => (
+                  <option key={perm.id} value={perm.id}>{perm.action} {perm.resource}</option>
+                ))}
+              </select>
+              <button onClick={assignPermission} className="bg-lentaBlue text-white px-4 py-2 rounded hover:bg-blue-700">Назначить право</button>
+              {rolePermissions.length > 0 && (
+                <ul className="mt-4 space-y-1 text-sm">
+                  {rolePermissions.map((perm) => (
+                    <li key={perm.id} className="flex justify-between items-center">
+                      <span>{perm.action} {perm.resource}</span>
+                      <button onClick={() => removePermissionFromRole(perm.id)} className="text-red-600 hover:underline text-xs">удалить</button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
           {tab === "attributes" && (
             <div className="flex flex-col gap-4">
               <div className="flex flex-col sm:flex-row gap-4 items-start">
@@ -168,39 +250,9 @@ export default function AdminPage() {
                 </label>
               </div>
 
-              <button className="bg-lentaBlue text-white px-4 py-2 rounded hover:bg-blue-700" onClick={async () => {
-                if (!selectedObjectType || !newAttrName || !newAttrDisplayName || !newAttrType) {
-                  setNotification({ type: "error", message: "❌ Заполните все поля" });
-                  return;
-                }
-
-                const payload = {
-                  name: newAttrName,
-                  display_name: newAttrDisplayName,
-                  type: newAttrType,
-                  is_required: newAttrIsRequired
-                };
-
-                const res = await fetch(`/api/object_types/${selectedObjectType}/attributes`, {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    Authorization: "Bearer " + getToken()
-                  },
-                  body: JSON.stringify(payload)
-                });
-
-                if (res.ok) {
-                  setNotification({ type: "success", message: "✅ Атрибут успешно добавлен" });
-                  setNewAttrName("");
-                  setNewAttrDisplayName("");
-                  setNewAttrType("string");
-                  setNewAttrIsRequired(false);
-                  fetchAttributesForObjectType(selectedObjectType);
-                } else {
-                  setNotification({ type: "error", message: "❌ Ошибка при добавлении атрибута" });
-                }
-              }}>Добавить атрибут</button>
+              <button className="bg-lentaBlue text-white px-4 py-2 rounded hover:bg-blue-700" onClick={addAttribute}>
+                Добавить атрибут
+              </button>
 
               {attributes.length > 0 && (
                 <div className="mt-6 text-sm">
