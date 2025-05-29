@@ -248,3 +248,20 @@ export default function AdminPage() {
     </div>
   );
 }
+
+
+curl -X POST http://localhost:8080/api/applications \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NDg2NzQ2NTcsInVzZXJfaWQiOjEsInVzZXJuYW1lIjoiYWRtaW4ifQ.mR2mceU9suOYnZX6eiWMTU_evDke9v80ZD_yTjboxiw" \
+  -d '{
+    "object_type_id": 3,
+    "attributes": [
+      { "attribute_id": 27, "value": "АРМ Кассир" },
+    ]
+  }'
+
+
+INSERT INTO attribute_values (object_type_id, object_id, attribute_id, value_text) VALUES
+(3, '948aee15-2d2f-463b-a1cc-c383caf56874', 21, 'АРМ Кассир');
+
+Добавить возможность привязать к нескольким доменам
