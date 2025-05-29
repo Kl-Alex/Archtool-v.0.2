@@ -20,7 +20,7 @@ const Sidebar = () => {
             <Link to="/admin" className="hover:underline">Админ-панель</Link>
           </li>
           <li>
-            <Link to="/registry" className="hover:underline">Бизнес-способности</Link>
+            <Link to="/registry" className="hover:underline">Реестр бизнес-способности</Link>
           </li>
           <li>
             <Link to="/applications" className="hover:underline">Реестр приложений</Link> {/* ✅ добавлено */}
