@@ -173,4 +173,3 @@ const BusinessCapabilityForm = forwardRef(({ onCreated, existingData }, ref) => 
   );
 });
 export default BusinessCapabilityForm;
-

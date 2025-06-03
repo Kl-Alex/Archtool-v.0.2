@@ -140,10 +140,11 @@ const handleDelete = async (id) => {
       }
     });
 
-    const sortByName = (a, b) =>
-      sortAsc
-        ? a.name.localeCompare(b.name)
-        : b.name.localeCompare(a.name);
+const sortByName = (a, b) =>
+  sortAsc
+    ? (a.name ?? "").localeCompare(b.name ?? "")
+    : (b.name ?? "").localeCompare(a.name ?? "");
+
 
     const sortTree = (nodes) =>
       nodes.sort(sortByName).map((node) => ({

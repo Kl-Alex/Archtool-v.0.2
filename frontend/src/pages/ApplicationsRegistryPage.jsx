@@ -6,7 +6,8 @@ import Spinner from "../components/Spinner";
 import ApplicationForm from "../components/ApplicationForm";
 import { getToken } from "../utils/auth";
 import { useNotification } from "../components/NotificationContext";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, Info } from "lucide-react";
+import { useNavigate } from "react-router-dom"
 
 export default function ApplicationsRegistryPage() {
   const [applications, setApplications] = useState([]);
@@ -15,6 +16,7 @@ export default function ApplicationsRegistryPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const createFormRef = useRef();
+  const navigate = useNavigate();
 
   const { notifyError, notifySuccess } = useNotification();
 
@@ -81,29 +83,40 @@ export default function ApplicationsRegistryPage() {
         ) : (
           <ul className="space-y-2">
             {applications.map((app) => (
-              <li key={app.id} className="p-4 bg-white rounded shadow border flex justify-between items-center">
-                <div>
-                  <div className="font-semibold">{app.name}</div>
-                  <div className="text-sm text-gray-600">ID: {app.id}</div>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      setEditingItem(app);
-                      setShowEditModal(true);
-                    }}
-                    className="text-gray-500 hover:text-lentaBlue"
-                  >
-                    <Pencil size={18} />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(app.id)}
-                    className="text-red-500 hover:text-red-700"
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                </div>
-              </li>
+<li
+  key={app.id}
+  className="p-4 bg-white rounded shadow border flex justify-between items-center group"
+>
+  <div>
+    <div className="font-semibold">{app.name}</div>
+    <div className="text-sm text-gray-600">ID: {app.id}</div>
+  </div>
+  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+    <button
+      onClick={() => navigate(`/applications/${app.id}`)}
+      className="text-blue-600 hover:text-blue-800"
+      title="Паспорт приложения"
+    >
+      <Info size={18} />
+    </button>
+    <button
+      onClick={() => {
+        setEditingItem(app);
+        setShowEditModal(true);
+      }}
+      className="text-gray-500 hover:text-lentaBlue"
+    >
+      <Pencil size={18} />
+    </button>
+    <button
+      onClick={() => handleDelete(app.id)}
+      className="text-red-500 hover:text-red-700"
+    >
+      <Trash2 size={18} />
+    </button>
+  </div>
+</li>
+
             ))}
           </ul>
         )}

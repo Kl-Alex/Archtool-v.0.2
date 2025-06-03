@@ -68,8 +68,9 @@ func GetApplicationByID(c *gin.Context) {
 	id := c.Param("id")
 
 	type AttrRow struct {
-		AttrName string `db:"name"`
-		Value    string `db:"value_text"`
+		AttrName    string `db:"name"`
+		DisplayName string `db:"display_name"`
+		Value       string `db:"value_text"`
 	}
 
 	var objectTypeID int
@@ -81,7 +82,7 @@ func GetApplicationByID(c *gin.Context) {
 
 	var rows []AttrRow
 	err = dbConn.Select(&rows, `
-		SELECT a.name, av.value_text
+		SELECT a.name, a.display_name, av.value_text
 		FROM attribute_values av
 		JOIN attributes a ON av.attribute_id = a.id
 		WHERE av.object_type_id = $1 AND av.object_id = $2`, objectTypeID, id)
@@ -90,13 +91,17 @@ func GetApplicationByID(c *gin.Context) {
 		return
 	}
 
-	result := map[string]string{"id": id}
+	result := map[string]interface{}{"id": id}
 	for _, row := range rows {
-		result[row.AttrName] = row.Value
+		result[row.AttrName] = map[string]string{
+			"displayName": row.DisplayName,
+			"value":       row.Value,
+		}
 	}
 
 	c.JSON(http.StatusOK, result)
 }
+
 
 func CreateApplication(c *gin.Context) {
 	dbConn, err := db.Connect()

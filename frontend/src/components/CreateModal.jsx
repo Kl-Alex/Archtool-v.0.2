@@ -1,12 +1,24 @@
+import { useState } from "react";
+
 const CreateModal = ({ title, children, onClose, onSubmit, submitLabel = "Создать" }) => {
+  const [shake, setShake] = useState(false);
+
   const handleSubmit = async () => {
     const result = await onSubmit?.();
-    if (result !== false) onClose(); // Закрываем, если не вернулось строго false
+    if (result === false) {
+      // Запускаем анимацию ошибки
+      setShake(true);
+      setTimeout(() => setShake(false), 400);
+    } else {
+      onClose();
+    }
   };
 
   return (
     <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center px-4">
-      <div className="relative bg-white rounded-xl w-full max-w-xl p-6 shadow-2xl animate-fade-in">
+      <div
+        className={`relative bg-white rounded-xl w-full max-w-xl p-6 shadow-2xl animate-fade-in ${shake ? 'animate-shake' : ''}`}
+      >
         <button
           className="absolute top-3 right-4 text-2xl text-gray-400 hover:text-red-500"
           onClick={onClose}

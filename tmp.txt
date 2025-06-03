@@ -265,3 +265,13 @@ INSERT INTO attribute_values (object_type_id, object_id, attribute_id, value_tex
 (3, '948aee15-2d2f-463b-a1cc-c383caf56874', 21, 'АРМ Кассир');
 
 Добавить возможность привязать к нескольким доменам
+
+
+DELETE FROM attribute_values
+WHERE object_type_id = 2 AND id IN (
+  SELECT object_id
+  FROM attribute_values
+  WHERE object_type_id = 2
+  GROUP BY id
+  HAVING COUNT(value_text) = 0
+);
