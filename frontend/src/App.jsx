@@ -4,6 +4,7 @@ import LoginPage from "./pages/LoginPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminPage from "./pages/AdminPage";
 import ApplicationsRegistryPage from "./pages/ApplicationsRegistryPage"; // ⬅️ добавили
+import ApplicationPassport from "./pages/ApplicationPassport";
 
 import { NotificationProvider } from "./components/NotificationContext";
 
@@ -33,6 +34,8 @@ function App() {
           } />
 
           <Route path="*" element={<Navigate to="/registry" />} />
+
+           <Route path="/applications/:id" element={<ApplicationPassport />} />
         </Routes>
       </Router>
     </NotificationProvider>
