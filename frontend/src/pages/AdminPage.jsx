@@ -175,12 +175,12 @@ export default function AdminPage() {
         <h1 className="text-2xl font-bold mb-6">Админ-панель</h1>
 
         <div className="flex gap-4 mb-6">
-          <button className={`px-4 py-2 rounded-t ${tab === "roles" ? "bg-white border-t-2 border-x-2 border-lentaBlue font-bold" : "bg-gray-100"}`} onClick={() => setTab("roles")}>Назначение ролей</button>
-          <button className={`px-4 py-2 rounded-t ${tab === "permissions" ? "bg-white border-t-2 border-x-2 border-lentaBlue font-bold" : "bg-gray-100"}`} onClick={() => setTab("permissions")}>Права ролей</button>
-          <button className={`px-4 py-2 rounded-t ${tab === "attributes" ? "bg-white border-t-2 border-x-2 border-lentaBlue font-bold" : "bg-gray-100"}`} onClick={() => setTab("attributes")}>Атрибуты объектов</button>
+          <button className={`px-4 py-2 rounded-t ${tab === "roles" ? "bg-lentaWhite border-t-2 border-x-2 border-lentaBlue font-bold" : "bg-lentaWhite"}`} onClick={() => setTab("roles")}>Назначение ролей</button>
+          <button className={`px-4 py-2 rounded-t ${tab === "permissions" ? "bg-lentaWhite border-t-2 border-x-2 border-lentaBlue font-bold" : "bg-lentaWhite"}`} onClick={() => setTab("permissions")}>Права ролей</button>
+          <button className={`px-4 py-2 rounded-t ${tab === "attributes" ? "bg-lentaWhite border-t-2 border-x-2 border-lentaBlue font-bold" : "bg-lentaWhite"}`} onClick={() => setTab("attributes")}>Атрибуты объектов</button>
         </div>
 
-        <div className="bg-white p-4 border rounded shadow">
+        <div className="bg-lentaWhite p-4 border rounded shadow">
           {tab === "roles" && (
             <div className="flex gap-4 items-start">
               <select value={selectedUser} onChange={(e) => setSelectedUser(e.target.value)} className="border p-2 rounded">

@@ -37,6 +37,7 @@ const RegistryPage = () => {
   const [sortAsc, setSortAsc] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
   const createFormRef = useRef();
+  const editFormRef = useRef();
 
     useHotkeys('esc', () => {
     setShowCreateModal(false);
@@ -381,44 +382,44 @@ const sortByName = (a, b) =>
         </div>
 
 
-        {showCreateModal && (
-<CreateModal
-  title="Создание бизнес-способности"
-  onClose={() => {
-  setShowCreateModal(false); // или setShowEditModal(false)
-}}
+{showCreateModal && (
+  <CreateModal
+    title="Создание бизнес-способности"
+    onClose={() => setShowCreateModal(false)}
+    onSubmit={() => {
+      if (createFormRef.current) {
+        return createFormRef.current.submit(); // обязательно return!
+      }
+      return false;
+    }}
+  >
+    <BusinessCapabilityForm ref={createFormRef} onCreated={handleCreatedOrUpdated} notifyError={notifyError} />
+  </CreateModal>
+)}
 
-  onSubmit={() => {
-    if (createFormRef.current) {
-      createFormRef.current.submit();
-    }
-  }}
->
-  <BusinessCapabilityForm
-    ref={createFormRef}
-    onCreated={handleCreatedOrUpdated}
-  />
-</CreateModal>
-        )}
 
-        {showEditModal && editingItem && (
-          <EditModal
-            title="Изменение бизнес-способности"
-            onClose={() => {
-              setShowEditModal(false);
-              setEditingItem(null);
-            }}
-            onSubmit={() => {
-              const btn = document.getElementById("submit-bc-form");
-              if (btn) btn.click();
-            }}
-          >
-            <BusinessCapabilityForm
-              existingData={editingItem}
-              onCreated={handleCreatedOrUpdated}
-            />
-          </EditModal>
-        )}
+{showEditModal && editingItem && (
+  <EditModal
+    title="Изменение бизнес-способности"
+    onClose={() => {
+      setShowEditModal(false);
+      setEditingItem(null);
+    }}
+    onSubmit={() => {
+      if (editFormRef.current) {
+        return editFormRef.current.submit(); // корректный вызов
+      }
+      return false;
+    }}
+  >
+    <BusinessCapabilityForm
+      ref={editFormRef}
+      existingData={editingItem}
+      onCreated={handleCreatedOrUpdated}
+      notifyError={notifyError}
+    />
+  </EditModal>
+)}
       </main>
       {selectedCard && (
         <BusinessCapabilityCard
