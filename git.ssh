@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# Получение текущей даты и времени в формате "YYYY-MM-DD HH:MM:SS"
+current_datetime=$(date +"%Y-%m-%d %H:%M:%S")
+
+# Добавление всех изменений
+git add .
+
+# Коммит с сообщением из даты и времени
+git commit -m "Auto-commit: $current_datetime"
+
+# Получение текущей ветки
+current_branch=$(git symbolic-ref --short HEAD)
+
+# Пуш в текущую ветку
+git push origin "$current_branch"
+

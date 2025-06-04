@@ -1,7 +1,21 @@
+import { useState } from "react";
+
 const EditModal = ({ title, children, onClose, onSubmit, submitLabel = "Изменить" }) => {
+  const [shake, setShake] = useState(false);
+
+  const handleSubmit = async () => {
+    const result = await onSubmit?.();
+    if (result !== false) {
+      onClose();
+    } else {
+      setShake(true);
+      setTimeout(() => setShake(false), 400);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center px-4">
-      <div className="relative bg-white rounded-xl w-full max-w-xl p-6 shadow-2xl animate-fade-in">
+      <div className={`relative bg-white rounded-xl w-full max-w-xl p-6 shadow-2xl animate-fade-in ${shake ? 'animate-shake' : ''}`}>
         <button
           className="absolute top-3 right-4 text-2xl text-gray-400 hover:text-red-500"
           onClick={onClose}
@@ -22,7 +36,7 @@ const EditModal = ({ title, children, onClose, onSubmit, submitLabel = "Изме
           </button>
           <button
             className="px-4 py-2 rounded bg-lentaBlue text-white hover:bg-blue-700"
-            onClick={onSubmit}
+            onClick={handleSubmit}
           >
             {submitLabel}
           </button>
