@@ -46,9 +46,11 @@ func main() {
 	// Логин
 	router.POST("/login", handlers.LoginHandler(dbConn))
 
+
 	// Защищённая группа маршрутов
 	authRoutes := router.Group("/api")
 	authRoutes.Use(middleware.JWTAuthMiddleware())
+	authRoutes.Use(middleware.ActionLogger(dbConn))
 
 	// Пример защищённого маршрута
 	authRoutes.GET("/protected", func(c *gin.Context) {
@@ -87,6 +89,8 @@ func main() {
 	authRoutes.POST("/applications", handlers.CreateApplication)
 	authRoutes.PUT("/applications/:id", handlers.UpdateApplication )
 	authRoutes.DELETE("/applications/:id", handlers.DeleteApplication)
+
+	authRoutes.GET("/action_logs", handlers.GetActionLogs(dbConn))
 
 
 	// Запуск сервера
