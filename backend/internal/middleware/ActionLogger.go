@@ -33,11 +33,12 @@ func ActionLogger(db *sqlx.DB) gin.HandlerFunc {
 		method := strings.ToUpper(c.Request.Method)
 		if method == "GET" {
 			c.Next()
-			return // не логируем GET
+			return // Пропускаем логирование GET-запросов
 		}
 
 		urlPath := c.Request.URL.Path
 		pathParts := strings.Split(strings.Trim(urlPath, "/"), "/")
+
 		var entity, entityID string
 		if len(pathParts) >= 2 {
 			entity = pathParts[1]
@@ -46,7 +47,6 @@ func ActionLogger(db *sqlx.DB) gin.HandlerFunc {
 			}
 		}
 
-		// Парсим тело
 		var newData map[string]interface{}
 		if len(bodyBytes) > 0 {
 			_ = json.Unmarshal(bodyBytes, &newData)
@@ -54,34 +54,32 @@ func ActionLogger(db *sqlx.DB) gin.HandlerFunc {
 
 		oldData := map[string]interface{}{}
 
-		// Особая логика для attribute_values
-		var objectID, attributeID string
-		if method == "POST" && strings.HasPrefix(urlPath, "/api/objects/") && strings.Contains(urlPath, "/attributes/") {
-			if len(pathParts) >= 6 {
-				objectID = pathParts[3]
-				attributeID = pathParts[5]
-				entity = "attribute_value"
-				entityID = fmt.Sprintf("%s:%s", objectID, attributeID)
+		// Подгружаем старые значения для бизнес-способности
+		if (method == "PUT" || method == "DELETE") && entity == "business_capabilities" && entityID != "" {
+			var objectTypeID int
+			err := db.Get(&objectTypeID, `SELECT id FROM object_types WHERE name = 'Бизнес-способность'`)
+			if err == nil {
+				var values []struct {
+					AttrID int    `db:"attribute_id"`
+					Name   string `db:"name"`
+					Value  string `db:"value_text"`
+				}
+				db.Select(&values, `
+					SELECT av.attribute_id, a.name, av.value_text
+					FROM attribute_values av
+					JOIN attributes a ON a.id = av.attribute_id
+					WHERE av.object_type_id = $1 AND av.object_id = $2`, objectTypeID, entityID)
 
-				// получаем старое значение
-				var old string
-				_ = db.Get(&old, `SELECT value_text FROM attribute_values WHERE object_id = $1 AND attribute_id = $2`, objectID, attributeID)
-				oldData["value"] = old
-
-				var parsed map[string]string
-				_ = json.Unmarshal(bodyBytes, &parsed)
-				newData["value"] = parsed["value"]
+				for _, v := range values {
+					oldData[v.Name] = v.Value
+				}
 			}
-		} else if method == "PUT" && entity != "" && entityID != "" {
-			// получаем старую запись целиком
-			query := fmt.Sprintf(`SELECT * FROM %s WHERE id = $1`, entity)
-			_ = db.Get(&oldData, query, entityID)
 		}
 
 		// Продолжаем выполнение запроса
 		c.Next()
 
-		// Формируем details
+
 		var details string
 		var oldVal, newVal string
 
@@ -93,13 +91,11 @@ func ActionLogger(db *sqlx.DB) gin.HandlerFunc {
 						changes = append(changes, fmt.Sprintf(`%s изменён с "%v" на "%v"`, key, oldV, newV))
 					}
 				} else {
-					// поле новое
 					changes = append(changes, fmt.Sprintf(`%s установлен как "%v"`, key, newV))
 				}
 			}
 			details = strings.Join(changes, "; ")
 
-			// если одно поле — логируем отдельно
 			if len(newData) == 1 {
 				for _, v := range newData {
 					newVal = fmt.Sprint(v)
@@ -108,18 +104,23 @@ func ActionLogger(db *sqlx.DB) gin.HandlerFunc {
 					oldVal = fmt.Sprint(v)
 				}
 			}
+		} else if len(newData) > 0 {
+			// Например, POST без старых данных
+			b, _ := json.Marshal(newData)
+			details = fmt.Sprintf("Создано: %s", b)
+			newVal = string(b)
+		} else if method == "DELETE" {
+			b, _ := json.Marshal(oldData)
+			details = fmt.Sprintf("Удалено: %s", b)
+			oldVal = string(b)
 		}
 
-		// Записываем лог
-		if details != "" {
-			_, err := db.Exec(`
-				INSERT INTO action_logs (user_id, action, entity, entity_id, old_value, new_value, details, timestamp)
-				VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-			`, userID, strings.ToLower(method), entity, entityID, nullIfEmpty(oldVal), nullIfEmpty(newVal), details, time.Now())
-
-			if err != nil {
-				log.Println("Ошибка записи в action_logs:", err)
-			}
+		_, err := db.Exec(`
+			INSERT INTO action_logs (user_id, action, entity, entity_id, old_value, new_value, details, timestamp)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		`, userID, strings.ToLower(method), entity, entityID, nullIfEmpty(oldVal), nullIfEmpty(newVal), details, time.Now())
+		if err != nil {
+			log.Println("Ошибка записи в action_logs:", err)
 		}
 	}
 }
