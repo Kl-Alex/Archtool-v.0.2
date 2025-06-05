@@ -10,7 +10,17 @@ import (
 func GetActionLogs(db *sqlx.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		rows, err := db.Queryx(`
-			SELECT l.id, l.user_id, u.username, l.action, l.entity, l.entity_id, l.timestamp
+			SELECT 
+				l.id, 
+				l.user_id, 
+				u.username, 
+				l.action, 
+				l.entity, 
+				l.entity_id, 
+				l.old_value, 
+				l.new_value, 
+				l.details,
+				l.timestamp
 			FROM action_logs l
 			LEFT JOIN users u ON l.user_id = u.id
 			ORDER BY l.timestamp DESC

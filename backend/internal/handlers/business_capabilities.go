@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"strconv"
+	"fmt"
 )
 
 // Получение всех бизнес-способностей (через attribute_values)
@@ -201,12 +202,15 @@ func UpdateBusinessCapability(c *gin.Context) {
 	defer dbConn.Close()
 
 	objectID := c.Param("id")
-	var input map[string]string
+
+	// Принимаем любые значения
+	var input map[string]interface{}
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
 		return
 	}
 
+	// Получаем object_type_id для "Бизнес-способность"
 	var objectTypeID int
 	err = dbConn.Get(&objectTypeID, `SELECT id FROM object_types WHERE name = 'Бизнес-способность'`)
 	if err != nil {
@@ -214,6 +218,7 @@ func UpdateBusinessCapability(c *gin.Context) {
 		return
 	}
 
+	// Получаем список атрибутов этого типа
 	type Attr struct {
 		ID   int    `db:"id"`
 		Name string `db:"name"`
@@ -221,12 +226,15 @@ func UpdateBusinessCapability(c *gin.Context) {
 	var attrs []Attr
 	dbConn.Select(&attrs, `SELECT id, name FROM attributes WHERE object_type_id = $1`, objectTypeID)
 
+	// Обновляем значения
 	tx := dbConn.MustBegin()
 	for _, attr := range attrs {
-		val, ok := input[attr.Name]
+		rawVal, ok := input[attr.Name]
 		if !ok {
 			continue
 		}
+		val := fmt.Sprintf("%v", rawVal) // Универсальная строка
+
 		_, err := tx.Exec(`
 			INSERT INTO attribute_values (object_type_id, object_id, attribute_id, value_text)
 			VALUES ($1, $2, $3, $4)
@@ -239,9 +247,9 @@ func UpdateBusinessCapability(c *gin.Context) {
 		}
 	}
 	tx.Commit()
+
 	c.JSON(http.StatusOK, input)
 }
-
 func DeleteBusinessCapability(c *gin.Context) {
 	dbConn, err := db.Connect()
 	if err != nil {
