@@ -15,39 +15,47 @@ const BusinessCapabilityForm = forwardRef(({ onCreated, existingData, notifyErro
     level: "L0",
   });
 
-  useEffect(() => {
-    const fetchObjectTypeAndAttributes = async () => {
-      const res = await fetch("/api/object_types", {
-        headers: { Authorization: `Bearer ${getToken()}` },
-      });
-      const types = await res.json();
-      const type = types.find(t => t.name === "Бизнес-способность");
-      if (!type) return;
+console.log("existingData:", existingData);
 
-      setObjectTypeId(type.id);
 
-      const attrRes = await fetch(`/api/object_types/${type.id}/attributes`, {
-        headers: { Authorization: `Bearer ${getToken()}` },
-      });
-      const attrs = await attrRes.json();
-      setAttributes(attrs);
+useEffect(() => {
+  const fetchObjectTypeAndAttributes = async () => {
+    const res = await fetch("/api/object_types", {
+      headers: { Authorization: `Bearer ${getToken()}` },
+    });
+    const types = await res.json();
+    const type = types.find(t => t.name === "Бизнес-способность");
+    if (!type) return;
 
-      if (existingData && existingData.attribute_values) {
-        const valuesMap = {};
-        existingData.attribute_values.forEach(v => {
-          valuesMap[v.attribute_id] = v.value;
-        });
-        setAttributeValues(valuesMap);
+    setObjectTypeId(type.id);
 
-        setParentInfo({
-          parent_id: existingData.parent_id || null,
-          level: existingData.level || "L0",
-        });
+    const attrRes = await fetch(`/api/object_types/${type.id}/attributes`, {
+      headers: { Authorization: `Bearer ${getToken()}` },
+    });
+    const attrs = await attrRes.json();
+    setAttributes(attrs);
+
+    // ⬇ ОБНОВЛЁННАЯ ЛОГИКА
+    if (existingData && existingData.attributes) {
+      const valuesMap = {};
+      for (const attr of attrs) {
+        const found = existingData.attributes.find(a => a.attribute_id === attr.id);
+        if (found) {
+          valuesMap[attr.id] = found.value_text;
+        }
       }
-    };
+      setAttributeValues(valuesMap);
 
-    fetchObjectTypeAndAttributes();
-  }, [existingData]);
+      setParentInfo({
+        parent_id: existingData.parent_id || null,
+        level: existingData.level || "L0",
+      });
+    }
+  };
+
+  fetchObjectTypeAndAttributes();
+}, [existingData]);
+
 
   useEffect(() => {
     const fetchCapabilities = async () => {

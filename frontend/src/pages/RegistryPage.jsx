@@ -39,7 +39,7 @@ const RegistryPage = () => {
   const createFormRef = useRef();
   const editFormRef = useRef();
 
-    useHotkeys('esc', () => {
+  useHotkeys('esc', () => {
     setShowCreateModal(false);
     setShowEditModal(false);
     setShowFilters(false);
@@ -49,37 +49,37 @@ const RegistryPage = () => {
   const { notifyError, notifySuccess } = useNotification();
 
 
-const fetchData = async () => {
-  setLoading(true);
-  try {
-    const token = localStorage.getItem("token");
-    const res = await fetch("/api/business_capabilities", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("/api/business_capabilities", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-    if (!res.ok) throw new Error("Ошибка загрузки данных");
+      if (!res.ok) throw new Error("Ошибка загрузки данных");
 
-    const data = await res.json();
-    setCapabilities(data);
+      const data = await res.json();
+      setCapabilities(data);
 
-    const collapsedMap = {};
-    data.forEach(item => {
-      collapsedMap[item.id] = false;
-    });
-    setOpenMap(collapsedMap);
+      const collapsedMap = {};
+      data.forEach(item => {
+        collapsedMap[item.id] = false;
+      });
+      setOpenMap(collapsedMap);
 
-    setTreeData(buildTreeFromList(data, {
-      level: filterLevel,
-      owner: filterOwner,
-      domain: filterDomain,
-      sortAsc,
-    }));
-  } catch (error) {
-    notifyError(error.message);
-  } finally {
-    setLoading(false);
-  }
-};
+      setTreeData(buildTreeFromList(data, {
+        level: filterLevel,
+        owner: filterOwner,
+        domain: filterDomain,
+        sortAsc,
+      }));
+    } catch (error) {
+      notifyError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleCreatedOrUpdated = async (id) => {
     const prevOpen = { ...openMap };
@@ -90,24 +90,40 @@ const fetchData = async () => {
     setTimeout(() => setHighlightedId(null), 5000);
   };
 
-const handleDelete = async (id) => {
-  const confirmed = window.confirm("Вы уверены, что хотите удалить эту бизнес-способность?");
-  if (!confirmed) return;
+  const handleDelete = async (id) => {
+    const confirmed = window.confirm("Вы уверены, что хотите удалить эту бизнес-способность?");
+    if (!confirmed) return;
 
-  const res = await fetch(`/api/business_capabilities/${id}`, {
-    method: "DELETE",
-    headers: {
-      Authorization: `Bearer ${getToken()}`,
-    },
-  });
+    const res = await fetch(`/api/business_capabilities/${id}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${getToken()}`,
+      },
+    });
 
-  if (res.ok) {
-    notifySuccess("Бизнес-способность удалена");
-    fetchData();
-  } else {
-    notifyError("Ошибка при удалении");
-  }
-};
+    if (res.ok) {
+      notifySuccess("Бизнес-способность удалена");
+      fetchData();
+    } else {
+      notifyError("Ошибка при удалении");
+    }
+  };
+
+  const handleEdit = async (node) => {
+    try {
+      const res = await fetch(`/api/business_capabilities/${node.id}`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (!res.ok) throw new Error("Ошибка при загрузке данных");
+
+      const fullData = await res.json();
+      setEditingItem(fullData);
+      setShowEditModal(true);
+    } catch (err) {
+      notifyError("Не удалось загрузить данные для редактирования");
+    }
+  };
+
 
 
   useEffect(() => {
@@ -141,10 +157,10 @@ const handleDelete = async (id) => {
       }
     });
 
-const sortByName = (a, b) =>
-  sortAsc
-    ? (a.name ?? "").localeCompare(b.name ?? "")
-    : (b.name ?? "").localeCompare(a.name ?? "");
+    const sortByName = (a, b) =>
+      sortAsc
+        ? (a.name ?? "").localeCompare(b.name ?? "")
+        : (b.name ?? "").localeCompare(a.name ?? "");
 
 
     const sortTree = (nodes) =>
@@ -215,15 +231,13 @@ const sortByName = (a, b) =>
               </div>
               <div className="flex space-x-2 items-start invisible group-hover:visible">
                 <button
-                  onClick={() => {
-                    setEditingItem(node);
-                    setShowEditModal(true);
-                  }}
+                  onClick={() => handleEdit(node)}
                   className="text-gray-400 hover:text-lentaBlue"
                   title="Изменить"
                 >
                   <Pencil size={18} />
                 </button>
+
 
 
                 <button
@@ -382,51 +396,56 @@ const sortByName = (a, b) =>
         </div>
 
 
-{showCreateModal && (
-  <CreateModal
-    title="Создание бизнес-способности"
-    onClose={() => setShowCreateModal(false)}
-    onSubmit={() => {
-      if (createFormRef.current) {
-        return createFormRef.current.submit(); // обязательно return!
-      }
-      return false;
-    }}
-  >
-    <BusinessCapabilityForm ref={createFormRef} onCreated={handleCreatedOrUpdated} notifyError={notifyError} />
-  </CreateModal>
-)}
+        {showCreateModal && (
+          <CreateModal
+            title="Создание бизнес-способности"
+            onClose={() => setShowCreateModal(false)}
+            onSubmit={() => {
+              if (createFormRef.current) {
+                return createFormRef.current.submit(); // обязательно return!
+              }
+              return false;
+            }}
+          >
+            <BusinessCapabilityForm ref={createFormRef} onCreated={handleCreatedOrUpdated} notifyError={notifyError} />
+          </CreateModal>
+        )}
 
 
-{showEditModal && editingItem && (
-  <EditModal
-    title="Изменение бизнес-способности"
-    onClose={() => {
-      setShowEditModal(false);
-      setEditingItem(null);
-    }}
-    onSubmit={() => {
-      if (editFormRef.current) {
-        return editFormRef.current.submit(); // корректный вызов
-      }
-      return false;
-    }}
-  >
-    <BusinessCapabilityForm
-      ref={editFormRef}
-      existingData={editingItem}
-      onCreated={handleCreatedOrUpdated}
-      notifyError={notifyError}
-    />
-  </EditModal>
-)}
+        {showEditModal && editingItem && (
+          <EditModal
+            title="Изменение бизнес-способности"
+            onClose={() => {
+              setShowEditModal(false);
+              setEditingItem(null);
+            }}
+            onSubmit={() => {
+              if (editFormRef.current) {
+                return editFormRef.current.submit(); // корректный вызов
+              }
+              return false;
+            }}
+          >
+            <BusinessCapabilityForm
+              ref={editFormRef}
+              existingData={editingItem}
+              onCreated={handleCreatedOrUpdated}
+              notifyError={notifyError}
+            />
+          </EditModal>
+        )}
+
+
       </main>
-      {selectedCard && (
-        <BusinessCapabilityCard
-          capability={selectedCard}
-          onClose={() => setSelectedCard(null)}
-        />
-      )}
+{selectedCard && (
+  <BusinessCapabilityCard
+    capability={selectedCard}
+    onClose={() => setSelectedCard(null)}
+    onUpdated={handleCreatedOrUpdated}
+    notifyError={notifyError}
+  />
+)}
+
 
     </div>
   );

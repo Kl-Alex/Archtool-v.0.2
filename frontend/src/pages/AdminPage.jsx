@@ -24,6 +24,8 @@ export default function AdminPage() {
 
   const [rolePermissions, setRolePermissions] = useState([]);
   const [notification, setNotification] = useState(null);
+  const [actionLogs, setActionLogs] = useState([]);
+
 
   const getAuthHeaders = () => ({
     Authorization: "Bearer " + getToken(),
@@ -54,6 +56,16 @@ export default function AdminPage() {
       setAttributes([]);
     }
   }, [selectedObjectType]);
+
+  useEffect(() => {
+    if (tab === "logs") {
+      fetch("/api/action_logs", { headers: getAuthHeaders() })
+        .then(res => res.json())
+        .then(setActionLogs)
+        .catch(() => setActionLogs([]));
+    }
+  }, [tab]);
+
 
   const fetchAttributesForObjectType = async (objectTypeId) => {
     const res = await fetch(`/api/object_types/${objectTypeId}/attributes`, { headers: getAuthHeaders() });
@@ -178,6 +190,8 @@ export default function AdminPage() {
           <button className={`px-4 py-2 rounded-t ${tab === "roles" ? "bg-lentaWhite border-t-2 border-x-2 border-lentaBlue font-bold" : "bg-lentaWhite"}`} onClick={() => setTab("roles")}>Назначение ролей</button>
           <button className={`px-4 py-2 rounded-t ${tab === "permissions" ? "bg-lentaWhite border-t-2 border-x-2 border-lentaBlue font-bold" : "bg-lentaWhite"}`} onClick={() => setTab("permissions")}>Права ролей</button>
           <button className={`px-4 py-2 rounded-t ${tab === "attributes" ? "bg-lentaWhite border-t-2 border-x-2 border-lentaBlue font-bold" : "bg-lentaWhite"}`} onClick={() => setTab("attributes")}>Атрибуты объектов</button>
+          <button className={`px-4 py-2 rounded-t ${tab === "logs" ? "bg-lentaWhite border-t-2 border-x-2 border-lentaBlue font-bold" : "bg-lentaWhite"}`} onClick={() => setTab("logs")}>Логи действий</button>
+
         </div>
 
         <div className="bg-lentaWhite p-4 border rounded shadow">
@@ -269,6 +283,43 @@ export default function AdminPage() {
               )}
             </div>
           )}
+
+{tab === "logs" && (
+  <div className="text-sm">
+    <h2 className="font-semibold mb-2">Последние действия пользователей:</h2>
+    <table className="table-auto w-full border-collapse border border-gray-200">
+      <thead>
+        <tr className="bg-gray-100">
+          <th className="border px-2 py-1">Пользователь</th>
+          <th className="border px-2 py-1">Действие</th>
+          <th className="border px-2 py-1">Объект</th>
+          <th className="border px-2 py-1">ID объекта</th>
+          <th className="border px-2 py-1">Было</th>
+          <th className="border px-2 py-1">Стало</th>
+          <th className="border px-2 py-1">Время</th>
+          <th className="border px-2 py-1">Подробности</th>
+
+        </tr>
+      </thead>
+      <tbody>
+        {actionLogs.map(log => (
+          <tr key={log.id} className="hover:bg-gray-50">
+            <td className="border px-2 py-1">{log.username || "—"}</td>
+            <td className="border px-2 py-1">{log.action}</td>
+            <td className="border px-2 py-1">{log.entity}</td>
+            <td className="border px-2 py-1">{log.entity_id}</td>
+            <td className="border px-2 py-1 text-red-600">{log.old_value || "—"}</td>
+            <td className="border px-2 py-1 text-green-600">{log.new_value || "—"}</td>
+            <td className="border px-2 py-1">{new Date(log.timestamp).toLocaleString()}</td>
+            <td className="border px-2 py-1">{log.details || "—"}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+)}
+
+
 
           {notification && (
             <Notification
