@@ -15,8 +15,6 @@ const BusinessCapabilityForm = forwardRef(({ onCreated, existingData, notifyErro
     level: "L0",
   });
 
-console.log("existingData:", existingData);
-
 
 useEffect(() => {
   const fetchObjectTypeAndAttributes = async () => {

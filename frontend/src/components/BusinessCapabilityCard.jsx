@@ -1,52 +1,77 @@
 import { useEffect, useState } from "react";
 import { getToken } from "../utils/auth";
-import BusinessCapabilityForm from "./BusinessCapabilityForm"; // Импортируем форму
 
 const fieldLabels = {
-  id: "ID",
   name: "Название",
   level: "Уровень",
   description: "Описание",
   owner: "Владелец",
-  it_domain: "Домен IT",
-  parent_id: "ID родителя",
-  parent_name: "Имя родителя",
+  it_domain: "Домен IT"
 };
 
 const BusinessCapabilityCard = ({ capability, onClose, onUpdated, notifyError }) => {
-  const [details, setDetails] = useState({});
-  const [parentName, setParentName] = useState(null);
-  const [isEditing, setIsEditing] = useState(false); // ⬅ режим редактирования
-  const [formKey, setFormKey] = useState(0); // хак для сброса формы при смене capability
+  const [details, setDetails] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [attributeValues, setAttributeValues] = useState({});
 
   useEffect(() => {
     const fetchDetails = async () => {
-      if (!capability?.id) return;
-
       try {
         const res = await fetch(`/api/business_capabilities/${capability.id}`, {
           headers: { Authorization: `Bearer ${getToken()}` },
         });
         const data = await res.json();
         setDetails(data);
-        setFormKey(prev => prev + 1); // сброс формы при обновлении
 
-        if (data.parent_id) {
-          const parentRes = await fetch(`/api/business_capabilities/${data.parent_id}`, {
-            headers: { Authorization: `Bearer ${getToken()}` },
-          });
-          const parentData = await parentRes.json();
-          setParentName(parentData.name || null);
-        }
+        const values = {};
+        (data.attributes || []).forEach(attr => {
+          values[attr.attribute_id] = attr.value_text;
+        });
+        setAttributeValues(values);
       } catch (err) {
-        console.error("Ошибка загрузки карточки:", err);
+        notifyError?.("Ошибка загрузки данных");
       }
     };
 
-    fetchDetails();
+    if (capability?.id) {
+      fetchDetails();
+    }
   }, [capability]);
 
-  if (!capability) return null;
+  const handleChange = (attrId, value) => {
+    setAttributeValues(prev => ({ ...prev, [attrId]: value }));
+  };
+
+  const handleSave = async () => {
+    const payload = {
+      object_type_id: details.object_type_id,
+      parent_id: details.parent_id || null,
+      level: details.level,
+      attributes: Object.entries(attributeValues).map(([attrId, value]) => ({
+        attribute_id: parseInt(attrId),
+        value
+      }))
+    };
+
+    const res = await fetch(`/api/business_capabilities/${details.id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${getToken()}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (res.ok) {
+      const updated = await res.json();
+      setIsEditing(false);
+      onUpdated?.(updated.id);
+    } else {
+      notifyError?.("Ошибка при сохранении");
+    }
+  };
+
+  if (!details) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-black bg-opacity-40 flex items-center justify-center px-4">
@@ -62,26 +87,43 @@ const BusinessCapabilityCard = ({ capability, onClose, onUpdated, notifyError })
           {isEditing ? "Редактирование бизнес-способности" : "Карточка бизнес-способности"}
         </h2>
 
-        {!isEditing ? (
-          <>
-            <div className="space-y-2 text-sm text-gray-800">
-              {Object.entries(details).map(([key, value]) => {
-                if (key === "parent_id") return null;
-                const label = fieldLabels[key] || key;
-                return (
-                  <div key={key}>
-                    <strong>{label}:</strong> {value || "—"}
-                  </div>
-                );
-              })}
-              {"parent_id" in details && (
-                <div>
-                  <strong>{fieldLabels["parent_name"]}:</strong> {parentName || "—"}
-                </div>
+        <div className="space-y-3 text-sm text-gray-800">
+          {(details.attributes || []).map(attr => (
+            <div key={attr.attribute_id} className="flex flex-col">
+              <label className="font-medium text-gray-600">
+                {fieldLabels[attr.name] || attr.name}
+              </label>
+              {isEditing ? (
+                <input
+                  className="p-2 border rounded"
+                  value={attributeValues[attr.attribute_id] || ""}
+                  onChange={(e) => handleChange(attr.attribute_id, e.target.value)}
+                />
+              ) : (
+                <div>{attr.value_text || "—"}</div>
               )}
             </div>
+          ))}
+        </div>
 
-            <div className="mt-6 flex justify-end gap-2">
+        <div className="mt-6 flex justify-end gap-2">
+          {isEditing ? (
+            <>
+              <button
+                onClick={handleSave}
+                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+              >
+                Сохранить
+              </button>
+              <button
+                onClick={() => setIsEditing(false)}
+                className="bg-gray-300 text-gray-800 px-4 py-2 rounded hover:bg-gray-400"
+              >
+                Отмена
+              </button>
+            </>
+          ) : (
+            <>
               <button
                 onClick={() => setIsEditing(true)}
                 className="bg-lentaBlue text-white px-4 py-2 rounded hover:bg-blue-700"
@@ -94,19 +136,9 @@ const BusinessCapabilityCard = ({ capability, onClose, onUpdated, notifyError })
               >
                 Закрыть
               </button>
-            </div>
-          </>
-        ) : (
-          <BusinessCapabilityForm
-            key={formKey}
-            existingData={details}
-            onCreated={(id) => {
-              onUpdated?.(id);
-              setIsEditing(false); // выход из режима редактирования
-            }}
-            notifyError={notifyError}
-          />
-        )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

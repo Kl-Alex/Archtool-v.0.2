@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"fmt"
+	"log"
 )
 
 // Получение всех бизнес-способностей (через attribute_values)
@@ -59,7 +60,6 @@ func GetBusinessCapabilities(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-// Получение бизнес-способности по ID
 func GetBusinessCapabilityByID(c *gin.Context) {
 	dbConn, err := db.Connect()
 	if err != nil {
@@ -68,13 +68,9 @@ func GetBusinessCapabilityByID(c *gin.Context) {
 	}
 	defer dbConn.Close()
 
-	id := c.Param("id")
+	objectID := c.Param("id")
 
-	type AttrRow struct {
-		AttrName string `db:"name"`
-		Value    string `db:"value_text"`
-	}
-
+	// Получаем object_type_id для "Бизнес-способность"
 	var objectTypeID int
 	err = dbConn.Get(&objectTypeID, `SELECT id FROM object_types WHERE name = 'Бизнес-способность'`)
 	if err != nil {
@@ -82,24 +78,46 @@ func GetBusinessCapabilityByID(c *gin.Context) {
 		return
 	}
 
-	var rows []AttrRow
-	err = dbConn.Select(&rows, `
-		SELECT a.name, av.value_text
+	// Получаем значения всех атрибутов для object_id
+	type AttributeRow struct {
+		AttributeID int    `db:"attribute_id" json:"attribute_id"`
+		Name        string `db:"name" json:"name"`
+		Value       string `db:"value_text" json:"value_text"`
+	}
+	var attrs []AttributeRow
+	err = dbConn.Select(&attrs, `
+		SELECT av.attribute_id, a.name, av.value_text
 		FROM attribute_values av
 		JOIN attributes a ON av.attribute_id = a.id
-		WHERE av.object_type_id = $1 AND av.object_id = $2`, objectTypeID, id)
+		WHERE av.object_type_id = $1 AND av.object_id = $2
+	`, objectTypeID, objectID)
+
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Object not found"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load attribute values"})
 		return
 	}
 
-	result := map[string]string{"id": id}
-	for _, row := range rows {
-		result[row.AttrName] = row.Value
+	// Ищем level и parent_id среди значений
+	var level, parentID *string
+	for _, attr := range attrs {
+		switch attr.Name {
+		case "level":
+			lv := attr.Value
+			level = &lv
+		case "parent_id":
+			pid := attr.Value
+			parentID = &pid
+		}
 	}
 
-	c.JSON(http.StatusOK, result)
+	c.JSON(http.StatusOK, gin.H{
+		"id":         objectID,
+		"level":      level,
+		"parent_id":  parentID,
+		"attributes": attrs,
+	})
 }
+
 
 func CreateBusinessCapability(c *gin.Context) {
 	dbConn, err := db.Connect()
@@ -203,14 +221,34 @@ func UpdateBusinessCapability(c *gin.Context) {
 
 	objectID := c.Param("id")
 
-	// Принимаем любые значения
 	var input map[string]interface{}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
 		return
 	}
 
-	// Получаем object_type_id для "Бизнес-способность"
+	fmt.Println("Входящий input:", input)
+
+	// Преобразуем input["attributes"] в map[int]string
+	attrsMap := map[int]string{}
+	if rawAttrs, ok := input["attributes"].([]interface{}); ok {
+		for _, raw := range rawAttrs {
+			if m, ok := raw.(map[string]interface{}); ok {
+				attrIDAny, hasID := m["attribute_id"]
+				valAny, hasVal := m["value"]
+
+				if hasID {
+					attrID := int(attrIDAny.(float64)) // JSON числа — float64
+					if hasVal && valAny != nil {
+						attrsMap[attrID] = fmt.Sprintf("%v", valAny)
+					} else {
+						attrsMap[attrID] = "" // пустая строка вместо null
+					}
+				}
+			}
+		}
+	}
+
 	var objectTypeID int
 	err = dbConn.Get(&objectTypeID, `SELECT id FROM object_types WHERE name = 'Бизнес-способность'`)
 	if err != nil {
@@ -218,38 +256,34 @@ func UpdateBusinessCapability(c *gin.Context) {
 		return
 	}
 
-	// Получаем список атрибутов этого типа
-	type Attr struct {
-		ID   int    `db:"id"`
-		Name string `db:"name"`
-	}
-	var attrs []Attr
-	dbConn.Select(&attrs, `SELECT id, name FROM attributes WHERE object_type_id = $1`, objectTypeID)
-
-	// Обновляем значения
 	tx := dbConn.MustBegin()
-	for _, attr := range attrs {
-		rawVal, ok := input[attr.Name]
-		if !ok {
-			continue
-		}
-		val := fmt.Sprintf("%v", rawVal) // Универсальная строка
+	for attrID, val := range attrsMap {
+		fmt.Printf("Обновление: attr_id = %d, value = %s\n", attrID, val)
 
 		_, err := tx.Exec(`
 			INSERT INTO attribute_values (object_type_id, object_id, attribute_id, value_text)
 			VALUES ($1, $2, $3, $4)
-			ON CONFLICT (object_id, attribute_id) DO UPDATE SET value_text = EXCLUDED.value_text`,
-			objectTypeID, objectID, attr.ID, val)
+			ON CONFLICT (object_id, attribute_id)
+			DO UPDATE SET value_text = EXCLUDED.value_text
+		`, objectTypeID, objectID, attrID, val)
+
 		if err != nil {
+			log.Println("Ошибка при вставке:", err)
 			tx.Rollback()
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Update failed"})
 			return
 		}
 	}
-	tx.Commit()
 
-	c.JSON(http.StatusOK, input)
+	if err := tx.Commit(); err != nil {
+		log.Println("Ошибка коммита:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Commit failed"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "updated"})
 }
+
 func DeleteBusinessCapability(c *gin.Context) {
 	dbConn, err := db.Connect()
 	if err != nil {
