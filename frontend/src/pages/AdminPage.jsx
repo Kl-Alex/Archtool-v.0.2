@@ -31,6 +31,10 @@ export default function AdminPage() {
 
   const [newAttrIsMultiple, setNewAttrIsMultiple] = useState(false);
   const [newAttrOptionsText, setNewAttrOptionsText] = useState("");
+  const [newAttrDictionaryName, setNewAttrDictionaryName] = useState("");
+  const [useDictionary, setUseDictionary] = useState(false);
+  const [availableDictionaries, setAvailableDictionaries] = useState([]);
+
 
   const getAuthHeaders = () => ({
     Authorization: "Bearer " + getToken(),
@@ -70,6 +74,14 @@ export default function AdminPage() {
         .catch(() => setActionLogs([]));
     }
   }, [tab]);
+
+
+  useEffect(() => {
+    fetch("/api/dictionaries", { headers: getAuthHeaders() })
+      .then(res => res.json())
+      .then(setAvailableDictionaries)
+      .catch(() => setAvailableDictionaries([]));
+  }, []);
 
 
   const fetchAttributesForObjectType = async (objectTypeId) => {
@@ -168,7 +180,8 @@ export default function AdminPage() {
       type: newAttrType,
       is_required: newAttrIsRequired,
       is_multiple: newAttrIsMultiple,
-      options: optionsArray,
+      options: useDictionary ? [] : optionsArray,
+      dictionary_name: useDictionary ? newAttrDictionaryName : ""
     };
 
     const res = await fetch(`/api/object_types/${selectedObjectType}/attributes`, {
@@ -189,6 +202,9 @@ export default function AdminPage() {
       fetchAttributesForObjectType(selectedObjectType);
       setNewAttrIsMultiple(false);
       setNewAttrOptionsText("");
+      setNewAttrDictionaryName("");
+      setUseDictionary(false);
+
 
     } else {
       setNotification({ type: "error", message: "❌ Ошибка при добавлении атрибута" });
@@ -208,8 +224,8 @@ export default function AdminPage() {
           <button className={`px-4 py-2 rounded-t ${tab === "logs" ? "bg-lentaWhite border-t-2 border-x-2 border-lentaBlue font-bold" : "bg-lentaWhite"}`} onClick={() => setTab("logs")}>Логи действий</button>
           <button
             className={`px-4 py-2 rounded-t ${tab === "dictionaries"
-                ? "bg-lentaWhite border-t-2 border-x-2 border-lentaBlue font-bold"
-                : "bg-lentaWhite"
+              ? "bg-lentaWhite border-t-2 border-x-2 border-lentaBlue font-bold"
+              : "bg-lentaWhite"
               }`}
             onClick={() => setTab("dictionaries")}
           >
@@ -297,14 +313,38 @@ export default function AdminPage() {
                       Множественный выбор
                     </label>
 
-                    <textarea
-                      placeholder="Опции (по одной в строке)"
-                      value={newAttrOptionsText}
-                      onChange={(e) => setNewAttrOptionsText(e.target.value)}
-                      className="border p-2 rounded"
-                    />
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={useDictionary}
+                        onChange={(e) => setUseDictionary(e.target.checked)}
+                      />
+                      Привязать к справочнику
+                    </label>
+
+                    {useDictionary ? (
+                      <select
+                        className="border p-2 rounded"
+                        value={newAttrDictionaryName}
+                        onChange={(e) => setNewAttrDictionaryName(e.target.value)}
+                      >
+                        <option value="">Выберите справочник</option>
+{availableDictionaries.map((dict) => (
+  <option key={dict} value={dict}>{dict}</option>
+))}
+
+                      </select>
+                    ) : (
+                      <textarea
+                        placeholder="Опции (по одной в строке)"
+                        value={newAttrOptionsText}
+                        onChange={(e) => setNewAttrOptionsText(e.target.value)}
+                        className="border p-2 rounded"
+                      />
+                    )}
                   </div>
                 )}
+
 
                 <label className="flex items-center gap-2 text-sm">
                   <input type="checkbox" checked={newAttrIsRequired} onChange={(e) => setNewAttrIsRequired(e.target.checked)} /> Обязательный
@@ -366,8 +406,8 @@ export default function AdminPage() {
             </div>
           )}
           {tab === "dictionaries" && (
-  <DictionaryManager />
-)}
+            <DictionaryManager />
+          )}
 
 
 

@@ -206,22 +206,47 @@ export default BusinessCapabilityForm;
 function SelectField({ attr, value, onChange, error }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [dictOptions, setDictOptions] = useState([]);
+  const [loadedDictName, setLoadedDictName] = useState("");
 
-  const options = attr.options || [];
   const isMultiple = attr.is_multiple;
   const selected = value || (isMultiple ? [] : "");
+
+  const options = attr.dictionary_name
+    ? dictOptions
+    : attr.options || [];
+
+  useEffect(() => {
+const dictName = typeof attr.dictionary_name === "object"
+  ? attr.dictionary_name.String
+  : attr.dictionary_name;
+
+if (dictName && loadedDictName !== dictName) {
+  fetch(`/api/dictionaries/${dictName}`, {
+    headers: { Authorization: `Bearer ${getToken()}` }
+  })
+    .then(res => res.json())
+    .then(data => {
+      const values = Array.isArray(data) ? data.map(d => d.value) : [];
+      setDictOptions(values);
+      setLoadedDictName(dictName);
+    })
+    .catch(err => {
+      console.error("Ошибка загрузки справочника:", err);
+      setDictOptions([]);
+    });
+}
+
+  }, [attr.dictionary_name, loadedDictName]);
 
   const filtered = options.filter((opt) =>
     opt.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // 💬 Множественный выбор с поиском
   if (attr.type === "select" && isMultiple) {
     return (
       <div className="relative">
-        <div
-          className="flex flex-wrap gap-1 mb-1"
-        >
+        <div className="flex flex-wrap gap-1 mb-1">
           {selected.map((opt) => (
             <span
               key={opt}
@@ -275,7 +300,6 @@ function SelectField({ attr, value, onChange, error }) {
     );
   }
 
-  // 🔹 Одиночный выбор с автоподсказками
   if (attr.type === "select") {
     return (
       <div className="relative">
@@ -312,7 +336,6 @@ function SelectField({ attr, value, onChange, error }) {
     );
   }
 
-  // 🔸 Строковые и другие типы
   return (
     <input
       type="text"
