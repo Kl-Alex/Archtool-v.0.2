@@ -1,6 +1,8 @@
 package models
 
 import "github.com/lib/pq"
+import "database/sql"
+
 
 type ObjectType struct {
 	ID   int    `json:"id" db:"id"`
@@ -18,4 +20,5 @@ type Attribute struct {
 	IsRequired    bool           `db:"is_required" json:"is_required"`
 	IsMultiple    bool           `db:"is_multiple" json:"is_multiple"`
 	Options       pq.StringArray `db:"options" json:"options"`
+	DictionaryName sql.NullString `db:"dictionary_name" json:"dictionary_name,omitempty"`
 }

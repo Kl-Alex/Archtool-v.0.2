@@ -90,6 +90,14 @@ func main() {
 	authRoutes.PUT("/applications/:id", handlers.UpdateApplication )
 	authRoutes.DELETE("/applications/:id", handlers.DeleteApplication)
 
+authRoutes.GET("/dictionaries/:name", handlers.GetDictionaryValues(dbConn))
+authRoutes.POST("/dictionaries/:name", handlers.AddDictionaryValue(dbConn))
+authRoutes.DELETE("/dictionaries/:name/:id", handlers.DeleteDictionaryValue(dbConn))
+authRoutes.GET("/dictionaries", handlers.ListDictionaries(dbConn))
+
+
+
+
 	authRoutes.GET("/action_logs", handlers.GetActionLogs(dbConn))
 
 

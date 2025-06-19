@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { getToken } from "../utils/auth";
 import Sidebar from "../components/Sidebar";
 import Notification from "../components/Notification";
+import DictionaryManager from "../components/DictionaryManager";
+
 
 export default function AdminPage() {
   const [tab, setTab] = useState("roles");
@@ -28,7 +30,7 @@ export default function AdminPage() {
 
 
   const [newAttrIsMultiple, setNewAttrIsMultiple] = useState(false);
-const [newAttrOptionsText, setNewAttrOptionsText] = useState("");
+  const [newAttrOptionsText, setNewAttrOptionsText] = useState("");
 
   const getAuthHeaders = () => ({
     Authorization: "Bearer " + getToken(),
@@ -155,19 +157,19 @@ const [newAttrOptionsText, setNewAttrOptionsText] = useState("");
       return;
     }
 
-const optionsArray = newAttrOptionsText
-  .split("\n")
-  .map((opt) => opt.trim())
-  .filter((opt) => opt.length > 0);
+    const optionsArray = newAttrOptionsText
+      .split("\n")
+      .map((opt) => opt.trim())
+      .filter((opt) => opt.length > 0);
 
-const payload = {
-  name: newAttrName,
-  display_name: newAttrDisplayName,
-  type: newAttrType,
-  is_required: newAttrIsRequired,
-  is_multiple: newAttrIsMultiple,
-  options: optionsArray,
-};
+    const payload = {
+      name: newAttrName,
+      display_name: newAttrDisplayName,
+      type: newAttrType,
+      is_required: newAttrIsRequired,
+      is_multiple: newAttrIsMultiple,
+      options: optionsArray,
+    };
 
     const res = await fetch(`/api/object_types/${selectedObjectType}/attributes`, {
       method: "POST",
@@ -186,7 +188,7 @@ const payload = {
       setNewAttrIsRequired(false);
       fetchAttributesForObjectType(selectedObjectType);
       setNewAttrIsMultiple(false);
-setNewAttrOptionsText("");
+      setNewAttrOptionsText("");
 
     } else {
       setNotification({ type: "error", message: "❌ Ошибка при добавлении атрибута" });
@@ -204,6 +206,16 @@ setNewAttrOptionsText("");
           <button className={`px-4 py-2 rounded-t ${tab === "permissions" ? "bg-lentaWhite border-t-2 border-x-2 border-lentaBlue font-bold" : "bg-lentaWhite"}`} onClick={() => setTab("permissions")}>Права ролей</button>
           <button className={`px-4 py-2 rounded-t ${tab === "attributes" ? "bg-lentaWhite border-t-2 border-x-2 border-lentaBlue font-bold" : "bg-lentaWhite"}`} onClick={() => setTab("attributes")}>Атрибуты объектов</button>
           <button className={`px-4 py-2 rounded-t ${tab === "logs" ? "bg-lentaWhite border-t-2 border-x-2 border-lentaBlue font-bold" : "bg-lentaWhite"}`} onClick={() => setTab("logs")}>Логи действий</button>
+          <button
+            className={`px-4 py-2 rounded-t ${tab === "dictionaries"
+                ? "bg-lentaWhite border-t-2 border-x-2 border-lentaBlue font-bold"
+                : "bg-lentaWhite"
+              }`}
+            onClick={() => setTab("dictionaries")}
+          >
+            Справочники
+          </button>
+
 
         </div>
 
@@ -274,25 +286,25 @@ setNewAttrOptionsText("");
                 </select>
 
 
-{newAttrType === "select" && (
-  <div className="flex flex-col gap-2">
-    <label className="flex items-center gap-2 text-sm">
-      <input
-        type="checkbox"
-        checked={newAttrIsMultiple}
-        onChange={(e) => setNewAttrIsMultiple(e.target.checked)}
-      />
-      Множественный выбор
-    </label>
+                {newAttrType === "select" && (
+                  <div className="flex flex-col gap-2">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={newAttrIsMultiple}
+                        onChange={(e) => setNewAttrIsMultiple(e.target.checked)}
+                      />
+                      Множественный выбор
+                    </label>
 
-    <textarea
-      placeholder="Опции (по одной в строке)"
-      value={newAttrOptionsText}
-      onChange={(e) => setNewAttrOptionsText(e.target.value)}
-      className="border p-2 rounded"
-    />
-  </div>
-)}
+                    <textarea
+                      placeholder="Опции (по одной в строке)"
+                      value={newAttrOptionsText}
+                      onChange={(e) => setNewAttrOptionsText(e.target.value)}
+                      className="border p-2 rounded"
+                    />
+                  </div>
+                )}
 
                 <label className="flex items-center gap-2 text-sm">
                   <input type="checkbox" checked={newAttrIsRequired} onChange={(e) => setNewAttrIsRequired(e.target.checked)} /> Обязательный
@@ -319,40 +331,44 @@ setNewAttrOptionsText("");
             </div>
           )}
 
-{tab === "logs" && (
-  <div className="text-sm">
-    <h2 className="font-semibold mb-2">Последние действия пользователей:</h2>
-    <table className="table-auto w-full border-collapse border border-gray-200">
-      <thead>
-        <tr className="bg-gray-100">
-          <th className="border px-2 py-1">Пользователь</th>
-          <th className="border px-2 py-1">Действие</th>
-          <th className="border px-2 py-1">Объект</th>
-          <th className="border px-2 py-1">ID объекта</th>
-          <th className="border px-2 py-1">Было</th>
-          <th className="border px-2 py-1">Стало</th>
-          <th className="border px-2 py-1">Время</th>
-          <th className="border px-2 py-1">Подробности</th>
+          {tab === "logs" && (
+            <div className="text-sm">
+              <h2 className="font-semibold mb-2">Последние действия пользователей:</h2>
+              <table className="table-auto w-full border-collapse border border-gray-200">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="border px-2 py-1">Пользователь</th>
+                    <th className="border px-2 py-1">Действие</th>
+                    <th className="border px-2 py-1">Объект</th>
+                    <th className="border px-2 py-1">ID объекта</th>
+                    <th className="border px-2 py-1">Было</th>
+                    <th className="border px-2 py-1">Стало</th>
+                    <th className="border px-2 py-1">Время</th>
+                    <th className="border px-2 py-1">Подробности</th>
 
-        </tr>
-      </thead>
-      <tbody>
-        {actionLogs.map(log => (
-          <tr key={log.id} className="hover:bg-gray-50">
-            <td className="border px-2 py-1">{log.username || "—"}</td>
-            <td className="border px-2 py-1">{log.action}</td>
-            <td className="border px-2 py-1">{log.entity}</td>
-            <td className="border px-2 py-1">{log.entity_id}</td>
-            <td className="border px-2 py-1 text-red-600">{log.old_value || "—"}</td>
-            <td className="border px-2 py-1 text-green-600">{log.new_value || "—"}</td>
-            <td className="border px-2 py-1">{new Date(log.timestamp).toLocaleString()}</td>
-            <td className="border px-2 py-1">{log.details || "—"}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </div>
+                  </tr>
+                </thead>
+                <tbody>
+                  {actionLogs.map(log => (
+                    <tr key={log.id} className="hover:bg-gray-50">
+                      <td className="border px-2 py-1">{log.username || "—"}</td>
+                      <td className="border px-2 py-1">{log.action}</td>
+                      <td className="border px-2 py-1">{log.entity}</td>
+                      <td className="border px-2 py-1">{log.entity_id}</td>
+                      <td className="border px-2 py-1 text-red-600">{log.old_value || "—"}</td>
+                      <td className="border px-2 py-1 text-green-600">{log.new_value || "—"}</td>
+                      <td className="border px-2 py-1">{new Date(log.timestamp).toLocaleString()}</td>
+                      <td className="border px-2 py-1">{log.details || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {tab === "dictionaries" && (
+  <DictionaryManager />
 )}
+
 
 
 
