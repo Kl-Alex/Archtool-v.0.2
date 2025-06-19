@@ -36,13 +36,12 @@ func GetAttributesByObjectType(db *sqlx.DB) gin.HandlerFunc {
 		}
 
 		var attrs []models.Attribute
-err = db.Select(&attrs, `
-	SELECT 
-		id, object_type_id, name, display_name, type, is_required, is_multiple, options::text[]
-	FROM attributes
-	WHERE object_type_id = $1
-`, objectTypeID)
-
+		err = db.Select(&attrs, `
+			SELECT 
+				id, object_type_id, name, display_name, type, is_required, is_multiple, options::text[], dictionary_name
+			FROM attributes
+			WHERE object_type_id = $1
+		`, objectTypeID)
 
 		if err != nil {
 			log.Println("Ошибка получения атрибутов:", err)
@@ -50,9 +49,28 @@ err = db.Select(&attrs, `
 			return
 		}
 
+		// Если указан dictionary_name, заменим options
+		for i := range attrs {
+			if attrs[i].DictionaryName.Valid {
+				var refOptions []string
+				err := db.Select(&refOptions, `
+					SELECT value FROM reference_data 
+					WHERE dictionary_name = $1 ORDER BY value
+				`, attrs[i].DictionaryName.String)
+
+				if err != nil {
+					log.Printf("Ошибка получения справочника '%s': %v", attrs[i].DictionaryName.String, err)
+					continue
+				}
+
+				attrs[i].Options = refOptions
+			}
+		}
+
 		c.JSON(http.StatusOK, attrs)
 	}
 }
+
 
 // POST /api/object_types/:id/attributes
 type CreateAttributeInput struct {
