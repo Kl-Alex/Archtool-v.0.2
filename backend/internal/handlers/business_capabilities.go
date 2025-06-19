@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"database/sql"
 )
 
 // Получение всех бизнес-способностей
@@ -145,8 +146,14 @@ func CreateBusinessCapability(c *gin.Context) {
 		var attrType string
 		var isMultiple bool
 		var options []string
-		err := dbConn.QueryRowx(`SELECT type, is_multiple, options FROM attributes WHERE id = $1`,
-			attr.AttributeID).Scan(&attrType, &isMultiple, pq.Array(&options))
+		var dictName sql.NullString
+
+		err := dbConn.QueryRowx(`
+			SELECT type, is_multiple, options, dictionary_name 
+			FROM attributes 
+			WHERE id = $1
+		`, attr.AttributeID).Scan(&attrType, &isMultiple, pq.Array(&options), &dictName)
+
 		if err != nil {
 			tx.Rollback()
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Атрибут не найден", "attr_id": attr.AttributeID})
@@ -174,18 +181,45 @@ func CreateBusinessCapability(c *gin.Context) {
 					c.JSON(http.StatusBadRequest, gin.H{"error": "Невалидный JSON-массив", "attr_id": attr.AttributeID})
 					return
 				}
+
 				for _, val := range selected {
-					if !utils.Contains(options, val) {
-						tx.Rollback()
-						c.JSON(http.StatusBadRequest, gin.H{"error": "Недопустимое значение: " + val})
-						return
+					if dictName.Valid {
+						var count int
+						err := dbConn.Get(&count, `
+							SELECT COUNT(*) FROM reference_data 
+							WHERE dictionary_name = $1 AND value = $2
+						`, dictName.String, val)
+						if err != nil || count == 0 {
+							tx.Rollback()
+							c.JSON(http.StatusBadRequest, gin.H{"error": "Недопустимое значение из справочника: " + val})
+							return
+						}
+					} else {
+						if !utils.Contains(options, val) {
+							tx.Rollback()
+							c.JSON(http.StatusBadRequest, gin.H{"error": "Недопустимое значение: " + val})
+							return
+						}
 					}
 				}
 			} else {
-				if !utils.Contains(options, attr.Value) {
-					tx.Rollback()
-					c.JSON(http.StatusBadRequest, gin.H{"error": "Недопустимое значение: " + attr.Value})
-					return
+				if dictName.Valid {
+					var count int
+					err := dbConn.Get(&count, `
+						SELECT COUNT(*) FROM reference_data 
+						WHERE dictionary_name = $1 AND value = $2
+					`, dictName.String, attr.Value)
+					if err != nil || count == 0 {
+						tx.Rollback()
+						c.JSON(http.StatusBadRequest, gin.H{"error": "Недопустимое значение из справочника: " + attr.Value})
+						return
+					}
+				} else {
+					if !utils.Contains(options, attr.Value) {
+						tx.Rollback()
+						c.JSON(http.StatusBadRequest, gin.H{"error": "Недопустимое значение: " + attr.Value})
+						return
+					}
 				}
 			}
 		case "string":
@@ -234,6 +268,7 @@ func CreateBusinessCapability(c *gin.Context) {
 	tx.Commit()
 	c.JSON(http.StatusCreated, gin.H{"id": objectID})
 }
+
 
 func UpdateBusinessCapability(c *gin.Context) {
 	dbConn, err := db.Connect()

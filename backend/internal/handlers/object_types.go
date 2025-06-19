@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"database/sql"
 
 	"archtool-backend/internal/models"
 		"archtool-backend/internal/utils"
@@ -80,6 +81,7 @@ type CreateAttributeInput struct {
 	IsRequired  bool     `json:"is_required"`
 	IsMultiple  bool     `json:"is_multiple"`
 	Options     []string `json:"options"`
+	DictionaryName string   `json:"dictionary_name"`
 }
 
 func CreateAttribute(db *sqlx.DB) gin.HandlerFunc {
@@ -101,10 +103,20 @@ func CreateAttribute(db *sqlx.DB) gin.HandlerFunc {
 			return
 		}
 
-		_, err = db.Exec(`
-			INSERT INTO attributes (object_type_id, name, display_name, type, is_required, is_multiple, options)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)
-		`, objectTypeID, input.Name, input.DisplayName, input.Type, input.IsRequired, input.IsMultiple, pq.Array(input.Options))
+_, err = db.Exec(`
+	INSERT INTO attributes (object_type_id, name, display_name, type, is_required, is_multiple, options, dictionary_name)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, NULLIF($8, ''))
+`,
+	objectTypeID,
+	input.Name,
+	input.DisplayName,
+	input.Type,
+	input.IsRequired,
+	input.IsMultiple,
+	pq.Array(input.Options),
+	input.DictionaryName,
+)
+
 
 		if err != nil {
 			log.Println("Ошибка создания атрибута:", err)
@@ -155,15 +167,31 @@ func SetAttributeValue(db *sqlx.DB) gin.HandlerFunc {
 			return
 		}
 
-		// Получаем тип, is_multiple и options
-		var attrType string
-		var isMultiple bool
-		var options []string
+var attrType string
+var isMultiple bool
+var options []string
+var dictionaryName sql.NullString
+
 err = db.QueryRow(`
-	SELECT type, is_multiple, options::text[]
+	SELECT type, is_multiple, options::text[], dictionary_name
 	FROM attributes
 	WHERE id = $1
-`, attrID).Scan(&attrType, &isMultiple, pq.Array(&options))
+`, attrID).Scan(&attrType, &isMultiple, pq.Array(&options), &dictionaryName)
+
+if err != nil {
+	c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось получить атрибут"})
+	return
+}
+
+// Если справочник указан — получаем значения из справочника
+if dictionaryName.Valid {
+	err := db.Select(&options, `SELECT value FROM reference_data WHERE dictionary_name = $1`, dictionaryName.String)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка загрузки справочника", "details": err.Error()})
+		return
+	}
+}
+
 
 
 
