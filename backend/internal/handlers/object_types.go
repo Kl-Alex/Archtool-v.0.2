@@ -1,13 +1,16 @@
 package handlers
 
 import (
+	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
-	"log"
 
+	"archtool-backend/internal/models"
+		"archtool-backend/internal/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/jmoiron/sqlx"
-	"archtool-backend/internal/models"
+	"github.com/lib/pq"
 )
 
 // GET /api/object_types
@@ -23,6 +26,7 @@ func GetObjectTypes(db *sqlx.DB) gin.HandlerFunc {
 	}
 }
 
+// GET /api/object_types/:id/attributes
 func GetAttributesByObjectType(db *sqlx.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		objectTypeID, err := strconv.Atoi(c.Param("id"))
@@ -32,11 +36,13 @@ func GetAttributesByObjectType(db *sqlx.DB) gin.HandlerFunc {
 		}
 
 		var attrs []models.Attribute
-		err = db.Select(&attrs, `
-			SELECT id, object_type_id, name, display_name, type, is_required
-			FROM attributes
-			WHERE object_type_id = $1
-		`, objectTypeID)
+err = db.Select(&attrs, `
+	SELECT 
+		id, object_type_id, name, display_name, type, is_required, is_multiple, options::text[]
+	FROM attributes
+	WHERE object_type_id = $1
+`, objectTypeID)
+
 
 		if err != nil {
 			log.Println("Ошибка получения атрибутов:", err)
@@ -48,11 +54,14 @@ func GetAttributesByObjectType(db *sqlx.DB) gin.HandlerFunc {
 	}
 }
 
+// POST /api/object_types/:id/attributes
 type CreateAttributeInput struct {
-	Name        string `json:"name"`
-	DisplayName string `json:"display_name"`
-	Type        string `json:"type"`
-	IsRequired  bool   `json:"is_required"`
+	Name        string   `json:"name"`
+	DisplayName string   `json:"display_name"`
+	Type        string   `json:"type"`
+	IsRequired  bool     `json:"is_required"`
+	IsMultiple  bool     `json:"is_multiple"`
+	Options     []string `json:"options"`
 }
 
 func CreateAttribute(db *sqlx.DB) gin.HandlerFunc {
@@ -75,11 +84,12 @@ func CreateAttribute(db *sqlx.DB) gin.HandlerFunc {
 		}
 
 		_, err = db.Exec(`
-			INSERT INTO attributes (object_type_id, name, display_name, type, is_required)
-			VALUES ($1, $2, $3, $4, $5)
-		`, objectTypeID, input.Name, input.DisplayName, input.Type, input.IsRequired)
+			INSERT INTO attributes (object_type_id, name, display_name, type, is_required, is_multiple, options)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
+		`, objectTypeID, input.Name, input.DisplayName, input.Type, input.IsRequired, input.IsMultiple, pq.Array(input.Options))
 
 		if err != nil {
+			log.Println("Ошибка создания атрибута:", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка создания атрибута", "details": err.Error()})
 			return
 		}
@@ -88,7 +98,7 @@ func CreateAttribute(db *sqlx.DB) gin.HandlerFunc {
 	}
 }
 
-// DELETE /api/attributes/:id — удаление атрибута по ID
+// DELETE /api/attributes/:id
 func DeleteAttribute(db *sqlx.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		attrID, err := strconv.Atoi(c.Param("id"))
@@ -107,8 +117,9 @@ func DeleteAttribute(db *sqlx.DB) gin.HandlerFunc {
 	}
 }
 
+// PUT /api/objects/:object_id/attributes/:attribute_id
 type SetAttributeValueInput struct {
-	Value string `json:"value"` // всегда строка из JSON — будем кастовать
+	Value string `json:"value"`
 }
 
 func SetAttributeValue(db *sqlx.DB) gin.HandlerFunc {
@@ -126,15 +137,24 @@ func SetAttributeValue(db *sqlx.DB) gin.HandlerFunc {
 			return
 		}
 
-		// 1. Получаем тип атрибута
+		// Получаем тип, is_multiple и options
 		var attrType string
-		err = db.Get(&attrType, "SELECT type FROM attributes WHERE id = $1", attrID)
+		var isMultiple bool
+		var options []string
+err = db.QueryRow(`
+	SELECT type, is_multiple, options::text[]
+	FROM attributes
+	WHERE id = $1
+`, attrID).Scan(&attrType, &isMultiple, pq.Array(&options))
+
+
+
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось получить тип атрибута"})
 			return
 		}
 
-		// 2. Валидация
+		// Валидация
 		switch attrType {
 		case "number":
 			if _, err := strconv.ParseFloat(input.Value, 64); err != nil {
@@ -146,14 +166,33 @@ func SetAttributeValue(db *sqlx.DB) gin.HandlerFunc {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Значение должно быть true или false"})
 				return
 			}
+		case "select":
+			if isMultiple {
+				var selected []string
+				if err := json.Unmarshal([]byte(input.Value), &selected); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "Должен быть JSON-массив строк"})
+					return
+				}
+				for _, val := range selected {
+					if !utils.Contains(options, val) {
+						c.JSON(http.StatusBadRequest, gin.H{"error": "Недопустимое значение: " + val})
+						return
+					}
+				}
+			} else {
+				if !utils.Contains(options, input.Value) {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "Недопустимое значение: " + input.Value})
+					return
+				}
+			}
 		case "string":
-			// always valid
+			// допустимо
 		default:
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Неизвестный тип атрибута"})
 			return
 		}
 
-		// 3. Сохраняем
+		// Сохраняем
 		_, err = db.Exec(`
 			INSERT INTO attribute_values (object_id, attribute_id, object_type_id, value_text)
 			VALUES ($1, $2, (SELECT object_type_id FROM attributes WHERE id = $2), $3)

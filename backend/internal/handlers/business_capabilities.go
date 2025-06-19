@@ -3,14 +3,17 @@ package handlers
 import (
 	"archtool-backend/internal/db"
 	"archtool-backend/internal/models"
+	"archtool-backend/internal/utils"
+	"encoding/json"
+	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/lib/pq"
+	"log"
 	"net/http"
 	"strconv"
-	"fmt"
-	"log"
 )
 
-// Получение всех бизнес-способностей (через attribute_values)
+// Получение всех бизнес-способностей
 func GetBusinessCapabilities(c *gin.Context) {
 	dbConn, err := db.Connect()
 	if err != nil {
@@ -70,7 +73,6 @@ func GetBusinessCapabilityByID(c *gin.Context) {
 
 	objectID := c.Param("id")
 
-	// Получаем object_type_id для "Бизнес-способность"
 	var objectTypeID int
 	err = dbConn.Get(&objectTypeID, `SELECT id FROM object_types WHERE name = 'Бизнес-способность'`)
 	if err != nil {
@@ -78,7 +80,6 @@ func GetBusinessCapabilityByID(c *gin.Context) {
 		return
 	}
 
-	// Получаем значения всех атрибутов для object_id
 	type AttributeRow struct {
 		AttributeID int    `db:"attribute_id" json:"attribute_id"`
 		Name        string `db:"name" json:"name"`
@@ -97,7 +98,6 @@ func GetBusinessCapabilityByID(c *gin.Context) {
 		return
 	}
 
-	// Ищем level и parent_id среди значений
 	var level, parentID *string
 	for _, attr := range attrs {
 		switch attr.Name {
@@ -117,7 +117,6 @@ func GetBusinessCapabilityByID(c *gin.Context) {
 		"attributes": attrs,
 	})
 }
-
 
 func CreateBusinessCapability(c *gin.Context) {
 	dbConn, err := db.Connect()
@@ -144,10 +143,13 @@ func CreateBusinessCapability(c *gin.Context) {
 
 	for _, attr := range input.Attributes {
 		var attrType string
-		err := dbConn.QueryRowx(`SELECT type FROM attributes WHERE id = $1`, attr.AttributeID).Scan(&attrType)
+		var isMultiple bool
+		var options []string
+		err := dbConn.QueryRowx(`SELECT type, is_multiple, options FROM attributes WHERE id = $1`,
+			attr.AttributeID).Scan(&attrType, &isMultiple, pq.Array(&options))
 		if err != nil {
 			tx.Rollback()
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Атрибут не найден или ошибка при получении", "attr_id": attr.AttributeID})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Атрибут не найден", "attr_id": attr.AttributeID})
 			return
 		}
 
@@ -163,6 +165,28 @@ func CreateBusinessCapability(c *gin.Context) {
 				tx.Rollback()
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Атрибут должен быть true или false", "attr_id": attr.AttributeID})
 				return
+			}
+		case "select":
+			if isMultiple {
+				var selected []string
+				if err := json.Unmarshal([]byte(attr.Value), &selected); err != nil {
+					tx.Rollback()
+					c.JSON(http.StatusBadRequest, gin.H{"error": "Невалидный JSON-массив", "attr_id": attr.AttributeID})
+					return
+				}
+				for _, val := range selected {
+					if !utils.Contains(options, val) {
+						tx.Rollback()
+						c.JSON(http.StatusBadRequest, gin.H{"error": "Недопустимое значение: " + val})
+						return
+					}
+				}
+			} else {
+				if !utils.Contains(options, attr.Value) {
+					tx.Rollback()
+					c.JSON(http.StatusBadRequest, gin.H{"error": "Недопустимое значение: " + attr.Value})
+					return
+				}
 			}
 		case "string":
 			// допустимо
@@ -229,20 +253,18 @@ func UpdateBusinessCapability(c *gin.Context) {
 
 	fmt.Println("Входящий input:", input)
 
-	// Преобразуем input["attributes"] в map[int]string
 	attrsMap := map[int]string{}
 	if rawAttrs, ok := input["attributes"].([]interface{}); ok {
 		for _, raw := range rawAttrs {
 			if m, ok := raw.(map[string]interface{}); ok {
 				attrIDAny, hasID := m["attribute_id"]
 				valAny, hasVal := m["value"]
-
 				if hasID {
-					attrID := int(attrIDAny.(float64)) // JSON числа — float64
+					attrID := int(attrIDAny.(float64))
 					if hasVal && valAny != nil {
 						attrsMap[attrID] = fmt.Sprintf("%v", valAny)
 					} else {
-						attrsMap[attrID] = "" // пустая строка вместо null
+						attrsMap[attrID] = ""
 					}
 				}
 			}
@@ -258,8 +280,6 @@ func UpdateBusinessCapability(c *gin.Context) {
 
 	tx := dbConn.MustBegin()
 	for attrID, val := range attrsMap {
-		fmt.Printf("Обновление: attr_id = %d, value = %s\n", attrID, val)
-
 		_, err := tx.Exec(`
 			INSERT INTO attribute_values (object_type_id, object_id, attribute_id, value_text)
 			VALUES ($1, $2, $3, $4)
