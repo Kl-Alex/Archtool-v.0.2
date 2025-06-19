@@ -27,6 +27,9 @@ export default function AdminPage() {
   const [actionLogs, setActionLogs] = useState([]);
 
 
+  const [newAttrIsMultiple, setNewAttrIsMultiple] = useState(false);
+const [newAttrOptionsText, setNewAttrOptionsText] = useState("");
+
   const getAuthHeaders = () => ({
     Authorization: "Bearer " + getToken(),
   });
@@ -152,12 +155,19 @@ export default function AdminPage() {
       return;
     }
 
-    const payload = {
-      name: newAttrName,
-      display_name: newAttrDisplayName,
-      type: newAttrType,
-      is_required: newAttrIsRequired,
-    };
+const optionsArray = newAttrOptionsText
+  .split("\n")
+  .map((opt) => opt.trim())
+  .filter((opt) => opt.length > 0);
+
+const payload = {
+  name: newAttrName,
+  display_name: newAttrDisplayName,
+  type: newAttrType,
+  is_required: newAttrIsRequired,
+  is_multiple: newAttrIsMultiple,
+  options: optionsArray,
+};
 
     const res = await fetch(`/api/object_types/${selectedObjectType}/attributes`, {
       method: "POST",
@@ -175,6 +185,9 @@ export default function AdminPage() {
       setNewAttrType("string");
       setNewAttrIsRequired(false);
       fetchAttributesForObjectType(selectedObjectType);
+      setNewAttrIsMultiple(false);
+setNewAttrOptionsText("");
+
     } else {
       setNotification({ type: "error", message: "❌ Ошибка при добавлении атрибута" });
     }
@@ -257,7 +270,29 @@ export default function AdminPage() {
                   <option value="string">string</option>
                   <option value="number">number</option>
                   <option value="boolean">boolean</option>
+                  <option value="select">select</option>
                 </select>
+
+
+{newAttrType === "select" && (
+  <div className="flex flex-col gap-2">
+    <label className="flex items-center gap-2 text-sm">
+      <input
+        type="checkbox"
+        checked={newAttrIsMultiple}
+        onChange={(e) => setNewAttrIsMultiple(e.target.checked)}
+      />
+      Множественный выбор
+    </label>
+
+    <textarea
+      placeholder="Опции (по одной в строке)"
+      value={newAttrOptionsText}
+      onChange={(e) => setNewAttrOptionsText(e.target.value)}
+      className="border p-2 rounded"
+    />
+  </div>
+)}
 
                 <label className="flex items-center gap-2 text-sm">
                   <input type="checkbox" checked={newAttrIsRequired} onChange={(e) => setNewAttrIsRequired(e.target.checked)} /> Обязательный

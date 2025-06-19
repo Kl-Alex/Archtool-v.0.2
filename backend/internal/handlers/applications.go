@@ -3,11 +3,15 @@ package handlers
 import (
 	"archtool-backend/internal/db"
 	"archtool-backend/internal/models"
+	"encoding/json"
 	"github.com/gin-gonic/gin"
+	"github.com/lib/pq"
 	"net/http"
+	"archtool-backend/internal/utils"
 	"strconv"
 )
 
+// GET /api/applications
 func GetApplications(c *gin.Context) {
 	dbConn, err := db.Connect()
 	if err != nil {
@@ -57,6 +61,7 @@ func GetApplications(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
+// GET /api/applications/:id
 func GetApplicationByID(c *gin.Context) {
 	dbConn, err := db.Connect()
 	if err != nil {
@@ -102,7 +107,7 @@ func GetApplicationByID(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-
+// POST /api/applications
 func CreateApplication(c *gin.Context) {
 	dbConn, err := db.Connect()
 	if err != nil {
@@ -128,7 +133,10 @@ func CreateApplication(c *gin.Context) {
 
 	for _, attr := range input.Attributes {
 		var attrType string
-		err := dbConn.QueryRowx(`SELECT type FROM attributes WHERE id = $1`, attr.AttributeID).Scan(&attrType)
+		var isMultiple bool
+		var options []string
+		err := dbConn.QueryRowx(`SELECT type, is_multiple, options FROM attributes WHERE id = $1`,
+			attr.AttributeID).Scan(&attrType, &isMultiple, pq.Array(&options))
 		if err != nil {
 			tx.Rollback()
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Атрибут не найден", "attr_id": attr.AttributeID})
@@ -148,11 +156,34 @@ func CreateApplication(c *gin.Context) {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Должно быть true/false", "attr_id": attr.AttributeID})
 				return
 			}
+		case "select":
+			if isMultiple {
+				var selected []string
+				if err := json.Unmarshal([]byte(attr.Value), &selected); err != nil {
+					tx.Rollback()
+					c.JSON(http.StatusBadRequest, gin.H{"error": "Невалидный JSON-массив для multiple select", "attr_id": attr.AttributeID})
+					return
+				}
+				for _, val := range selected {
+					if !utils.Contains(options, val) {
+						tx.Rollback()
+						c.JSON(http.StatusBadRequest, gin.H{"error": "Недопустимое значение: " + val})
+						return
+					}
+				}
+			} else {
+				if !utils.Contains(options, attr.Value) {
+					tx.Rollback()
+					c.JSON(http.StatusBadRequest, gin.H{"error": "Недопустимое значение: " + attr.Value})
+					return
+				}
+			}
 		}
 
 		_, err = tx.Exec(`
 			INSERT INTO attribute_values (object_type_id, object_id, attribute_id, value_text)
-			VALUES ($1, $2, $3, $4)`, input.ObjectTypeID, objectID, attr.AttributeID, attr.Value)
+			VALUES ($1, $2, $3, $4)`,
+			input.ObjectTypeID, objectID, attr.AttributeID, attr.Value)
 		if err != nil {
 			tx.Rollback()
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка сохранения атрибута"})
@@ -164,6 +195,7 @@ func CreateApplication(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"id": objectID})
 }
 
+// PUT /api/applications/:id
 func UpdateApplication(c *gin.Context) {
 	dbConn, err := db.Connect()
 	if err != nil {
@@ -214,6 +246,7 @@ func UpdateApplication(c *gin.Context) {
 	c.JSON(http.StatusOK, input)
 }
 
+// DELETE /api/applications/:id
 func DeleteApplication(c *gin.Context) {
 	dbConn, err := db.Connect()
 	if err != nil {
