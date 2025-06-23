@@ -34,6 +34,8 @@ export default function AdminPage() {
   const [newAttrDictionaryName, setNewAttrDictionaryName] = useState("");
   const [useDictionary, setUseDictionary] = useState(false);
   const [availableDictionaries, setAvailableDictionaries] = useState([]);
+  const [newAttrDateFormat, setNewAttrDateFormat] = useState("");
+
 
 
   const getAuthHeaders = () => ({
@@ -181,7 +183,8 @@ export default function AdminPage() {
       is_required: newAttrIsRequired,
       is_multiple: newAttrIsMultiple,
       options: useDictionary ? [] : optionsArray,
-      dictionary_name: useDictionary ? newAttrDictionaryName : ""
+      dictionary_name: useDictionary ? newAttrDictionaryName : "",
+      date_format: newAttrType === "date" ? newAttrDateFormat : "",
     };
 
     const res = await fetch(`/api/object_types/${selectedObjectType}/attributes`, {
@@ -204,6 +207,8 @@ export default function AdminPage() {
       setNewAttrOptionsText("");
       setNewAttrDictionaryName("");
       setUseDictionary(false);
+      setNewAttrDateFormat("");
+
 
 
     } else {
@@ -299,7 +304,24 @@ export default function AdminPage() {
                   <option value="number">number</option>
                   <option value="boolean">boolean</option>
                   <option value="select">select</option>
+                  <option value="date">date</option>
+
                 </select>
+
+                {newAttrType === "date" && (
+  <select
+    className="border p-2 rounded"
+    value={newAttrDateFormat}
+    onChange={(e) => setNewAttrDateFormat(e.target.value)}
+  >
+    <option value="">Выберите формат даты</option>
+    <option value="dd.mm.yyyy">дд.мм.гггг</option>
+    <option value="mm.yyyy">мм.гггг</option>
+    <option value="qn.yyyy">qn.гггг</option>
+    <option value="yyyy">гггг</option>
+  </select>
+)}
+
 
 
                 {newAttrType === "select" && (

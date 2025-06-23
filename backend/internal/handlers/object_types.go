@@ -82,6 +82,7 @@ type CreateAttributeInput struct {
 	IsMultiple  bool     `json:"is_multiple"`
 	Options     []string `json:"options"`
 	DictionaryName string   `json:"dictionary_name"`
+	DateFormat     string   `json:"date_format"`
 }
 
 func CreateAttribute(db *sqlx.DB) gin.HandlerFunc {
@@ -104,8 +105,8 @@ func CreateAttribute(db *sqlx.DB) gin.HandlerFunc {
 		}
 
 _, err = db.Exec(`
-	INSERT INTO attributes (object_type_id, name, display_name, type, is_required, is_multiple, options, dictionary_name)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, NULLIF($8, ''))
+	INSERT INTO attributes (object_type_id, name, display_name, type, is_required, is_multiple, options, dictionary_name,date_format)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, NULLIF($8, ''),$9)
 `,
 	objectTypeID,
 	input.Name,
@@ -115,6 +116,7 @@ _, err = db.Exec(`
 	input.IsMultiple,
 	pq.Array(input.Options),
 	input.DictionaryName,
+	input.DateFormat,
 )
 
 

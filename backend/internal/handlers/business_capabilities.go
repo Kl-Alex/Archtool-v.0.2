@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"strconv"
 	"database/sql"
+	"regexp"
 )
 
 // Получение всех бизнес-способностей
@@ -173,6 +174,32 @@ func CreateBusinessCapability(c *gin.Context) {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Атрибут должен быть true или false", "attr_id": attr.AttributeID})
 				return
 			}
+
+		case "date":
+	patterns := []string{
+		`^\d{2}\.\d{2}\.\d{4}$`,   // дд.мм.гггг
+		`^\d{2}\.\d{4}$`,          // мм.гггг
+		`^q[1-4]\.\d{4}$`,         // qn.гггг
+		`^\d{4}$`,                 // гггг
+	}
+	valid := false
+	for _, pat := range patterns {
+		matched, _ := regexp.MatchString(pat, attr.Value)
+		if matched {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		tx.Rollback()
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Неверный формат даты",
+			"attr_id": attr.AttributeID,
+			"value": attr.Value,
+		})
+		return
+	}
+
 		case "select":
 			if isMultiple {
 				var selected []string

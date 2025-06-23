@@ -9,8 +9,8 @@ export default {
   theme: {
     extend: {
       colors: {
-        lentaBlue: "#003c96",
-        lentaYellow: "#fdbf1d",
+        lentaBlue: "#003C71",
+        lentaYellow: "#FFD500",
         lentaWhite: "#f4f4f4",
         textMain: "#131722", // ← основной цвет текста
         textSubmain: "#41b6e6"

@@ -300,6 +300,19 @@ if (dictName && loadedDictName !== dictName) {
     );
   }
 
+  if (attr.type === "date") {
+  return (
+    <input
+      type="text"
+      value={value || ""}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder="дд.мм.гггг, мм.гггг, q1.2024, 2024"
+      className={`w-full p-2 border rounded ${error ? "border-red-500 ring-1 ring-red-300" : "border-gray-300"}`}
+    />
+  );
+}
+
+
   if (attr.type === "select") {
     return (
       <div className="relative">

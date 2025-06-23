@@ -21,4 +21,5 @@ type Attribute struct {
 	IsMultiple    bool           `db:"is_multiple" json:"is_multiple"`
 	Options       pq.StringArray `db:"options" json:"options"`
 	DictionaryName sql.NullString `db:"dictionary_name" json:"dictionary_name"`
+	DateFormat     *string `db:"date_format" json:"date_format,omitempty"`
 }
