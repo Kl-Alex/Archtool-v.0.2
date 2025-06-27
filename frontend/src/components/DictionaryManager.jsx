@@ -7,7 +7,6 @@ export default function DictionaryManager() {
   const [values, setValues] = useState([]);
   const [newValue, setNewValue] = useState("");
 
-  // Загрузка списка доступных справочников
   useEffect(() => {
     fetch("/api/dictionaries", {
       headers: { Authorization: `Bearer ${getToken()}` }
@@ -21,10 +20,8 @@ export default function DictionaryManager() {
       });
   }, []);
 
-  // Загрузка значений текущего справочника
   useEffect(() => {
     if (!selectedDict) return;
-
     fetch(`/api/dictionaries/${selectedDict}`, {
       headers: { Authorization: `Bearer ${getToken()}` },
     })
@@ -65,56 +62,66 @@ export default function DictionaryManager() {
   };
 
   return (
-    <div className="p-4 space-y-4">
-      <h2 className="text-xl font-semibold">Управление справочниками</h2>
+    <div className="mt-8 ml-6 max-w-3xl">
+      <h2 className="text-2xl font-semibold text-gray-800 mb-6">Справочники</h2>
 
-      <div className="flex gap-4 items-center">
-        <label className="font-medium">Справочник:</label>
-        <select
-          value={selectedDict}
-          onChange={e => setSelectedDict(e.target.value)}
-          className="p-2 border rounded"
-        >
-          {availableDictionaries.map(name => (
-            <option key={name} value={name}>{name}</option>
-          ))}
-        </select>
-      </div>
-
-      {selectedDict && (
-        <>
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={newValue}
-              onChange={e => setNewValue(e.target.value)}
-              placeholder="Новое значение"
-              className="p-2 border rounded w-64"
-            />
-            <button
-              onClick={addValue}
-              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-            >
-              Добавить
-            </button>
-          </div>
-
-          <ul className="border rounded p-2 max-w-md divide-y text-sm">
-            {values.map(v => (
-              <li key={v.id} className="flex justify-between items-center py-1 px-2">
-                <span>{v.value}</span>
-                <button
-                  onClick={() => deleteValue(v.id)}
-                  className="text-red-500 hover:text-red-700 text-xs"
-                >
-                  Удалить
-                </button>
-              </li>
+      <div className="bg-white shadow-sm rounded-lg p-6 space-y-6">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Выберите справочник</label>
+          <select
+            value={selectedDict}
+            onChange={e => setSelectedDict(e.target.value)}
+            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+          >
+            {availableDictionaries.map(name => (
+              <option key={name} value={name}>{name}</option>
             ))}
-            {values.length === 0 && <li className="text-gray-500 py-2 px-2">Нет значений</li>}
-          </ul>
-        </>
-      )}
+          </select>
+        </div>
+
+        {selectedDict && (
+          <>
+            <div className="flex gap-3 items-end">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Новое значение</label>
+                <input
+                  type="text"
+                  value={newValue}
+                  onChange={e => setNewValue(e.target.value)}
+                  placeholder="Введите значение"
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                />
+              </div>
+              <button
+                onClick={addValue}
+                className="h-10 px-4 text-sm border border-gray-300 bg-white hover:bg-gray-100 rounded-md"
+              >
+                Добавить
+              </button>
+            </div>
+
+            <div className="mt-4">
+              <h3 className="text-sm font-medium text-gray-700 mb-2">Значения справочника</h3>
+              <ul className="divide-y border border-gray-200 rounded-md">
+                {values.map(v => (
+                  <li key={v.id} className="flex justify-between items-center px-4 py-2 text-sm">
+                    <span>{v.value}</span>
+                    <button
+                      onClick={() => deleteValue(v.id)}
+                      className="text-red-500 hover:text-red-600 text-xs"
+                    >
+                      удалить
+                    </button>
+                  </li>
+                ))}
+                {values.length === 0 && (
+                  <li className="px-4 py-2 text-sm text-gray-500">Нет значений</li>
+                )}
+              </ul>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

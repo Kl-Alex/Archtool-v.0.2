@@ -8,6 +8,7 @@ const BusinessCapabilityForm = forwardRef(({ onCreated, existingData, notifyErro
   const [errors, setErrors] = useState({});
   const [existingCapabilities, setExistingCapabilities] = useState([]);
   const [parentSearch, setParentSearch] = useState("");
+  const [isParentListOpen, setIsParentListOpen] = useState(false);
   const [filteredParents, setFilteredParents] = useState([]);
   const [parentInfo, setParentInfo] = useState({
     parent_id: null,
@@ -138,49 +139,64 @@ const BusinessCapabilityForm = forwardRef(({ onCreated, existingData, notifyErro
   );
 
   return (
-    <form className="bg-white p-4 rounded shadow space-y-4 relative">
+    <form className="bg-white p-6 rounded-xl shadow border space-y-6 text-sm">
       {/* Поиск родителя */}
-      <input
-        type="text"
-        placeholder="Поиск родителя..."
-        className="w-full p-2 border rounded"
-        value={parentSearch}
-        onChange={(e) => {
-          const value = e.target.value;
-          setParentSearch(value);
-          const query = value.toLowerCase();
-          setFilteredParents(
-            existingCapabilities.filter(cap => cap.name?.toLowerCase().includes(query))
-          );
-        }}
-      />
+<div className="space-y-2">
+  <input
+    type="text"
+    placeholder="Поиск родителя..."
+    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-100"
+    value={parentSearch}
+    onChange={(e) => {
+      const value = e.target.value;
+      setParentSearch(value);
+      const query = value.toLowerCase();
+      setFilteredParents(
+        existingCapabilities.filter(cap => cap.name?.toLowerCase().includes(query))
+      );
+    }}
+  />
 
-      <div className="border rounded bg-white mt-1 max-h-48 overflow-y-auto shadow text-sm z-10 relative">
+  <button
+    type="button"
+    onClick={() => setIsParentListOpen((prev) => !prev)}
+    className="text-blue-600 hover:underline text-sm"
+  >
+    {isParentListOpen ? "Скрыть список родителей" : "Показать список родителей"}
+  </button>
+
+  {isParentListOpen && (
+    <div className="border border-gray-200 bg-white rounded-md shadow max-h-48 overflow-y-auto z-10 text-sm">
+      <div
+        className="px-3 py-2 hover:bg-gray-100 cursor-pointer"
+        onClick={() => {
+          setParentSearch("");
+          setParentInfo({ parent_id: null, level: "L0" });
+          setIsParentListOpen(false);
+        }}
+      >
+        Без родителя (L0)
+      </div>
+      {filteredParents.map((cap) => (
         <div
-          className="px-3 py-1 hover:bg-gray-100 cursor-pointer"
+          key={cap.id}
+          className="px-3 py-2 hover:bg-gray-100 cursor-pointer"
           onClick={() => {
-            setParentSearch("");
-            setParentInfo({ parent_id: null, level: "L0" });
+            setParentSearch(cap.name);
+            setParentInfo({
+              parent_id: cap.id,
+              level: calculateLevel(cap.level),
+            });
+            setIsParentListOpen(false);
           }}
         >
-          Без родителя (L0)
+          {cap.name} <span className="text-gray-400">({cap.level})</span>
         </div>
-        {filteredParents.map((cap) => (
-          <div
-            key={cap.id}
-            className="px-3 py-1 hover:bg-gray-100 cursor-pointer"
-            onClick={() => {
-              setParentSearch(cap.name);
-              setParentInfo({
-                parent_id: cap.id,
-                level: calculateLevel(cap.level),
-              });
-            }}
-          >
-            {cap.name} ({cap.level})
-          </div>
-        ))}
-      </div>
+      ))}
+    </div>
+  )}
+</div>
+
 
       {/* Динамические атрибуты */}
       {filteredAttributes.map(attr => (
@@ -217,25 +233,25 @@ function SelectField({ attr, value, onChange, error }) {
     : attr.options || [];
 
   useEffect(() => {
-const dictName = typeof attr.dictionary_name === "object"
-  ? attr.dictionary_name.String
-  : attr.dictionary_name;
+    const dictName = typeof attr.dictionary_name === "object"
+      ? attr.dictionary_name.String
+      : attr.dictionary_name;
 
-if (dictName && loadedDictName !== dictName) {
-  fetch(`/api/dictionaries/${dictName}`, {
-    headers: { Authorization: `Bearer ${getToken()}` }
-  })
-    .then(res => res.json())
-    .then(data => {
-      const values = Array.isArray(data) ? data.map(d => d.value) : [];
-      setDictOptions(values);
-      setLoadedDictName(dictName);
-    })
-    .catch(err => {
-      console.error("Ошибка загрузки справочника:", err);
-      setDictOptions([]);
-    });
-}
+    if (dictName && loadedDictName !== dictName) {
+      fetch(`/api/dictionaries/${dictName}`, {
+        headers: { Authorization: `Bearer ${getToken()}` }
+      })
+        .then(res => res.json())
+        .then(data => {
+          const values = Array.isArray(data) ? data.map(d => d.value) : [];
+          setDictOptions(values);
+          setLoadedDictName(dictName);
+        })
+        .catch(err => {
+          console.error("Ошибка загрузки справочника:", err);
+          setDictOptions([]);
+        });
+    }
 
   }, [attr.dictionary_name, loadedDictName]);
 
@@ -250,23 +266,24 @@ if (dictName && loadedDictName !== dictName) {
           {selected.map((opt) => (
             <span
               key={opt}
-              className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full flex items-center gap-1"
+              className="bg-blue-50 text-blue-800 text-xs px-2 py-1 rounded-full flex items-center gap-1 border border-blue-200"
             >
               {opt}
               <button
                 type="button"
                 onClick={() => onChange(selected.filter((v) => v !== opt))}
-                className="text-red-500 hover:text-red-700 font-bold"
+                className="text-blue-500 hover:text-red-600 font-bold"
               >
                 ×
               </button>
             </span>
+
           ))}
         </div>
 
         <input
           type="text"
-          className={`w-full p-2 border rounded ${error ? "border-red-500 ring-1 ring-red-300" : "border-gray-300"}`}
+          className={`w-full px-3 py-2 border rounded-md text-sm ${error ? "border-red-500 ring-1 ring-red-300" : "border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-100"}`}
           placeholder="Поиск и выбор..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
@@ -277,11 +294,10 @@ if (dictName && loadedDictName !== dictName) {
         {isOpen && filtered.length > 0 && (
           <div className="absolute z-10 mt-1 w-full border rounded bg-white shadow max-h-48 overflow-y-auto p-2 space-y-1">
             {filtered.map((opt) => (
-              <label key={opt} className="flex items-center gap-2 text-sm">
+              <label key={opt} className="flex items-center gap-2 px-2 py-1 hover:bg-gray-50 rounded cursor-pointer">
                 <input
                   type="checkbox"
                   className="form-checkbox h-4 w-4 text-blue-600"
-                  value={opt}
                   checked={selected.includes(opt)}
                   onChange={(e) => {
                     const checked = e.target.checked;
@@ -291,7 +307,7 @@ if (dictName && loadedDictName !== dictName) {
                     onChange(newValue);
                   }}
                 />
-                {opt}
+                <span>{opt}</span>
               </label>
             ))}
           </div>
@@ -301,16 +317,16 @@ if (dictName && loadedDictName !== dictName) {
   }
 
   if (attr.type === "date") {
-  return (
-    <input
-      type="text"
-      value={value || ""}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder="дд.мм.гггг, мм.гггг, q1.2024, 2024"
-      className={`w-full p-2 border rounded ${error ? "border-red-500 ring-1 ring-red-300" : "border-gray-300"}`}
-    />
-  );
-}
+    return (
+      <input
+        type="text"
+        value={value || ""}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="дд.мм.гггг, мм.гггг, q1.2024, 2024"
+        className={`w-full px-3 py-2 border rounded-md text-sm ${error ? "border-red-500 ring-1 ring-red-300" : "border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-100"}`}
+      />
+    );
+  }
 
 
   if (attr.type === "select") {
@@ -318,7 +334,7 @@ if (dictName && loadedDictName !== dictName) {
       <div className="relative">
         <input
           type="text"
-          className={`w-full p-2 border rounded ${error ? "border-red-500 ring-1 ring-red-300" : "border-gray-300"}`}
+          className={`w-full px-3 py-2 border rounded-md text-sm ${error ? "border-red-500 ring-1 ring-red-300" : "border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-100"}`}
           value={searchTerm || selected}
           placeholder="Выберите..."
           onChange={(e) => {
@@ -354,7 +370,8 @@ if (dictName && loadedDictName !== dictName) {
       type="text"
       value={selected}
       onChange={(e) => onChange(e.target.value)}
-      className={`w-full p-2 border rounded ${error ? "border-red-500 ring-1 ring-red-300" : "border-gray-300"}`}
+      className={`w-full px-3 py-2 border rounded-md text-sm ${error ? "border-red-500 ring-1 ring-red-300" : "border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-100"}`}
+
     />
   );
 }

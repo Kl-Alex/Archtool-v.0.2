@@ -75,7 +75,8 @@ const BusinessCapabilityCard = ({ capability, onClose, onUpdated, notifyError })
 
   return (
     <div className="fixed inset-0 z-50 bg-black bg-opacity-40 flex items-center justify-center px-4">
-      <div className="bg-white p-6 rounded-xl w-full max-w-xl shadow-xl relative overflow-y-auto max-h-[90vh]">
+      <div className="bg-white p-6 rounded-xl w-full max-w-xl shadow-lg relative overflow-y-auto max-h-[90vh] border border-gray-200">
+        {/* Закрыть */}
         <button
           className="absolute top-3 right-4 text-gray-400 hover:text-red-500 text-xl"
           onClick={onClose}
@@ -83,41 +84,47 @@ const BusinessCapabilityCard = ({ capability, onClose, onUpdated, notifyError })
           &times;
         </button>
 
-        <h2 className="text-xl font-bold text-lentaBlue mb-4">
+        {/* Заголовок */}
+        <h2 className="text-xl font-semibold text-gray-800 mb-4">
           {isEditing ? "Редактирование бизнес-способности" : "Карточка бизнес-способности"}
         </h2>
 
-        <div className="space-y-3 text-sm text-gray-800">
+        {/* Атрибуты */}
+        <div className="space-y-4">
           {(details.attributes || []).map(attr => (
-            <div key={attr.attribute_id} className="flex flex-col">
-              <label className="font-medium text-gray-600">
+            <div key={attr.attribute_id} className="flex flex-col gap-1">
+              <label className="text-sm font-medium text-gray-600">
                 {fieldLabels[attr.name] || attr.name}
               </label>
               {isEditing ? (
                 <input
-                  className="p-2 border rounded"
+                  type="text"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-100"
                   value={attributeValues[attr.attribute_id] || ""}
                   onChange={(e) => handleChange(attr.attribute_id, e.target.value)}
                 />
               ) : (
-                <div>{attr.value_text || "—"}</div>
+                <div className="text-gray-800 text-sm">
+                  {attr.value_text || <span className="text-gray-400">—</span>}
+                </div>
               )}
             </div>
           ))}
         </div>
 
-        <div className="mt-6 flex justify-end gap-2">
+        {/* Кнопки */}
+        <div className="mt-6 flex justify-end gap-3 text-sm">
           {isEditing ? (
             <>
               <button
                 onClick={handleSave}
-                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
               >
                 Сохранить
               </button>
               <button
                 onClick={() => setIsEditing(false)}
-                className="bg-gray-300 text-gray-800 px-4 py-2 rounded hover:bg-gray-400"
+                className="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200 transition"
               >
                 Отмена
               </button>
@@ -126,13 +133,13 @@ const BusinessCapabilityCard = ({ capability, onClose, onUpdated, notifyError })
             <>
               <button
                 onClick={() => setIsEditing(true)}
-                className="bg-lentaBlue text-white px-4 py-2 rounded hover:bg-blue-700"
+                className="bg-lentaBlue text-white px-4 py-2 rounded hover:bg-blue-700 transition"
               >
                 Редактировать
               </button>
               <button
                 onClick={onClose}
-                className="bg-gray-300 text-gray-800 px-4 py-2 rounded hover:bg-gray-400"
+                className="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200 transition"
               >
                 Закрыть
               </button>

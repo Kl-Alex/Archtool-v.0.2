@@ -7,7 +7,7 @@ import ApplicationForm from "../components/ApplicationForm";
 import { getToken } from "../utils/auth";
 import { useNotification } from "../components/NotificationContext";
 import { Pencil, Trash2, Info } from "lucide-react";
-import { useNavigate } from "react-router-dom"
+import { useNavigate } from "react-router-dom";
 
 export default function ApplicationsRegistryPage() {
   const [applications, setApplications] = useState([]);
@@ -65,11 +65,11 @@ export default function ApplicationsRegistryPage() {
   };
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen bg-gray-50">
       <Sidebar />
-      <main className="flex-1 p-6 bg-lentaWhite overflow-auto">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold text-lentaBlue">Приложения</h1>
+      <main className="flex-1 p-6 overflow-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold text-lentaBlue">Реестр приложений</h1>
           <button
             onClick={() => setShowCreateModal(true)}
             className="bg-lentaBlue text-white px-4 py-2 rounded hover:bg-blue-700"
@@ -81,43 +81,47 @@ export default function ApplicationsRegistryPage() {
         {loading ? (
           <Spinner />
         ) : (
-          <ul className="space-y-2">
+          <ul className="space-y-3">
             {applications.map((app) => (
-<li
-  key={app.id}
-  className="p-4 bg-white rounded shadow border flex justify-between items-center group"
->
-  <div>
-    <div className="font-semibold">{app.name}</div>
-    <div className="text-sm text-gray-600">ID: {app.id}</div>
-  </div>
-  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-    <button
-      onClick={() => navigate(`/applications/${app.id}`)}
-      className="text-blue-600 hover:text-blue-800"
-      title="Паспорт приложения"
-    >
-      <Info size={18} />
-    </button>
-    <button
-      onClick={() => {
-        setEditingItem(app);
-        setShowEditModal(true);
-      }}
-      className="text-gray-500 hover:text-lentaBlue"
-    >
-      <Pencil size={18} />
-    </button>
-    <button
-      onClick={() => handleDelete(app.id)}
-      className="text-red-500 hover:text-red-700"
-    >
-      <Trash2 size={18} />
-    </button>
-  </div>
-</li>
-
+              <li
+                key={app.id}
+                className="p-4 bg-white rounded-lg border shadow flex justify-between items-center group transition"
+              >
+                <div>
+                  <div className="font-semibold text-gray-800">{app.name}</div>
+                  <div className="text-xs text-gray-500">ID: {app.id}</div>
+                </div>
+                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                  <button
+                    onClick={() => navigate(`/applications/${app.id}`)}
+                    className="text-blue-600 hover:text-blue-800"
+                    title="Паспорт приложения"
+                  >
+                    <Info size={18} />
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditingItem(app);
+                      setShowEditModal(true);
+                    }}
+                    className="text-gray-500 hover:text-lentaBlue"
+                    title="Редактировать"
+                  >
+                    <Pencil size={18} />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(app.id)}
+                    className="text-red-500 hover:text-red-700"
+                    title="Удалить"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+              </li>
             ))}
+            {applications.length === 0 && (
+              <li className="text-gray-500 text-sm">Нет приложений</li>
+            )}
           </ul>
         )}
 

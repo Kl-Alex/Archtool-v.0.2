@@ -32,39 +32,40 @@ export default function ApplicationPassportPage() {
   return (
     <div className="flex h-screen bg-gray-50">
       <Sidebar />
-      <div className="flex-1 p-6">
-        <button
-          onClick={() => navigate("/applications")}
-          className="mb-6 inline-flex items-center gap-2 px-4 py-2 bg-lentaBlue text-white rounded hover:bg-blue-800"
-        >
-          <ArrowLeft size={18} />
-          Назад
-        </button>
+      <main className="flex-1 px-6 py-8 overflow-auto">
+        <div className="max-w-3xl mx-auto">
+          <button
+            onClick={() => navigate("/applications")}
+            className="mb-6 inline-flex items-center gap-2 px-4 py-2 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-100 transition"
+          >
+            <ArrowLeft size={18} />
+            Назад к списку
+          </button>
 
-        <div className="bg-white p-6 rounded-2xl shadow-xl max-w-screen-md mx-auto">
-          <h1 className="text-2xl font-bold text-lentaBlue mb-6">Паспорт приложения</h1>
+          <div className="bg-white rounded-2xl shadow p-6">
+            <h1 className="text-2xl font-bold text-lentaBlue mb-6">Паспорт приложения</h1>
 
-          <div className="grid gap-3 text-sm text-gray-800">
-            {Object.entries(details).map(([key, value]) => {
-              if (typeof value === "object" && value !== null && "displayName" in value) {
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
+              {Object.entries(details).map(([key, value]) => {
+                const displayName = typeof value === "object" && value !== null && "displayName" in value
+                  ? value.displayName
+                  : key;
+
+                const displayValue = typeof value === "object" && value !== null && "value" in value
+                  ? value.value
+                  : value;
+
                 return (
-                  <div key={key} className="flex">
-                    <span className="font-semibold min-w-[140px]">{value.displayName}:</span>
-                    <span>{value.value || "—"}</span>
+                  <div key={key}>
+                    <dt className="text-gray-500 font-medium">{displayName}</dt>
+                    <dd className="text-gray-800">{displayValue || "—"}</dd>
                   </div>
                 );
-              }
-
-              return (
-                <div key={key} className="flex">
-                  <span className="font-semibold min-w-[140px]">{key}:</span>
-                  <span>{value || "—"}</span>
-                </div>
-              );
-            })}
+              })}
+            </dl>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

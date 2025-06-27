@@ -1,7 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const EditModal = ({ title, children, onClose, onSubmit, submitLabel = "Изменить" }) => {
   const [shake, setShake] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const handleSubmit = async () => {
     const result = await onSubmit?.();
@@ -15,27 +23,32 @@ const EditModal = ({ title, children, onClose, onSubmit, submitLabel = "Изме
 
   return (
     <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center px-4">
-      <div className={`relative bg-white rounded-xl w-full max-w-xl p-6 shadow-2xl animate-fade-in ${shake ? 'animate-shake' : ''}`}>
+      <div className={`relative bg-white rounded-2xl w-full max-w-lg sm:max-w-xl p-6 shadow-xl animate-fade-in ${shake ? 'animate-shake' : ''}`}>
         <button
-          className="absolute top-3 right-4 text-2xl text-gray-400 hover:text-red-500"
+          className="absolute top-3 right-4 text-2xl text-gray-400 hover:text-red-500 transition"
           onClick={onClose}
         >
           &times;
         </button>
 
-        {title && <h2 className="text-xl font-bold text-lentaBlue mb-4">{title}</h2>}
+        {title && (
+          <div className="mb-4">
+            <h2 className="text-xl font-semibold text-gray-800">{title}</h2>
+            <div className="h-[2px] bg-gray-100 mt-2" />
+          </div>
+        )}
 
         <div>{children}</div>
 
         <div className="mt-6 flex justify-end space-x-2">
           <button
-            className="px-4 py-2 rounded border border-gray-300 text-gray-600 hover:bg-gray-100"
+            className="px-4 py-2 rounded-md border border-gray-300 text-sm text-gray-600 hover:bg-gray-100 transition"
             onClick={onClose}
           >
             Отмена
           </button>
           <button
-            className="px-4 py-2 rounded bg-lentaBlue text-white hover:bg-blue-700"
+            className="px-4 py-2 rounded-md bg-lentaBlue text-sm text-white hover:bg-blue-700 transition"
             onClick={handleSubmit}
           >
             {submitLabel}

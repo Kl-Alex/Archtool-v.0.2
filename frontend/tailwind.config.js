@@ -12,7 +12,7 @@ export default {
         lentaBlue: "#003C71",
         lentaYellow: "#FFD500",
         lentaWhite: "#f4f4f4",
-        textMain: "#131722", // ← основной цвет текста
+        textMain: "#333333", // ← основной цвет текста
         textSubmain: "#41b6e6"
       },
       fontFamily: {
