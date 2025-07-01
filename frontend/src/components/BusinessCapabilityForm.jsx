@@ -228,10 +228,15 @@ function SelectField({ attr, value, onChange, error }) {
   const isMultiple = attr.is_multiple;
   const selected = value || (isMultiple ? [] : "");
 
-  const options = attr.dictionary_name
-    ? dictOptions
-    : attr.options || [];
-
+const rawOptions = attr.options;
+const options = attr.dictionary_name
+  ? dictOptions
+  : Array.isArray(rawOptions)
+      ? rawOptions.map(o => typeof o === "string" ? o : o.value)
+      : typeof rawOptions === "string"
+        ? JSON.parse(rawOptions)
+        : [];
+        
   useEffect(() => {
     const dictName = typeof attr.dictionary_name === "object"
       ? attr.dictionary_name.String

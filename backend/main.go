@@ -94,6 +94,7 @@ authRoutes.GET("/dictionaries/:name", handlers.GetDictionaryValues(dbConn))
 authRoutes.POST("/dictionaries/:name", handlers.AddDictionaryValue(dbConn))
 authRoutes.DELETE("/dictionaries/:name/:id", handlers.DeleteDictionaryValue(dbConn))
 authRoutes.GET("/dictionaries", handlers.ListDictionaries(dbConn))
+router.POST("/api/assistant", handlers.AssistantHandler)
 
 
 

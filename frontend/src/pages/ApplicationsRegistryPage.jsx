@@ -8,6 +8,7 @@ import { getToken } from "../utils/auth";
 import { useNotification } from "../components/NotificationContext";
 import { Pencil, Trash2, Info } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import AssistantPanel from "../components/AssistantPanel";
 
 export default function ApplicationsRegistryPage() {
   const [applications, setApplications] = useState([]);
@@ -68,6 +69,7 @@ export default function ApplicationsRegistryPage() {
     <div className="flex h-screen bg-gray-50">
       <Sidebar />
       <main className="flex-1 p-6 overflow-auto">
+                <AssistantPanel />
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-lentaBlue">Реестр приложений</h1>
           <button
