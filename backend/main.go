@@ -102,6 +102,20 @@ func main() {
 	authRoutes.GET("/action_logs", handlers.GetActionLogs(dbConn))
 
 
+
+	// Диаграммы (создание, чтение, обновление с версиями, удаление)
+dh := handlers.NewDiagramsHandler()
+
+authRoutes.GET("/diagrams", dh.ListDiagrams)                      // список + поиск + пагинация
+authRoutes.POST("/diagrams", dh.CreateDiagram)                    // создать
+authRoutes.GET("/diagrams/:id", dh.GetDiagram)                    // получить по id
+authRoutes.PUT("/diagrams/:id", dh.UpdateDiagram)                 // обновить (поддерживает If-Match: <version>)
+authRoutes.DELETE("/diagrams/:id", dh.DeleteDiagram)              // удалить
+
+// История версий диаграмм
+authRoutes.GET("/diagrams/:id/versions", dh.ListVersions)         // список версий
+authRoutes.GET("/diagrams/:id/versions/:version", dh.GetVersion)  // конкретная версия
+
 	// Запуск сервера
 	port := os.Getenv("PORT")
 	if port == "" {

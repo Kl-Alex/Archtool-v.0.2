@@ -6,6 +6,7 @@ import AdminPage from "./pages/AdminPage";
 import ApplicationsRegistryPage from "./pages/ApplicationsRegistryPage"; // ⬅️ добавили
 import ApplicationPassport from "./pages/ApplicationPassport";
 import GraphEditor from "@/grapheditor/pages/GraphEditor";
+import DiagramsList from "./grapheditor/components/DiagramsList";
 
 import { NotificationProvider } from "./components/NotificationContext";
 
@@ -36,8 +37,10 @@ function App() {
 
           <Route path="*" element={<Navigate to="/registry" />} />
 
-           <Route path="/applications/:id" element={<ApplicationPassport />} />
-           <Route path="/graph" element={<GraphEditor />} />
+          <Route path="/applications/:id" element={<ApplicationPassport />} />
+          <Route path="/graph" element={<GraphEditor />} />
+          <Route path="/grapheditor/diagrams" element={<DiagramsList />} />
+          <Route path="/graph/:id" element={<GraphEditor />} />
         </Routes>
 
       </Router>

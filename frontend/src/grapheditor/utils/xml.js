@@ -19,3 +19,21 @@ export function decodeXMLIntoGraph(graph, xml) {
     graph.getModel().endUpdate();
   }
 }
+
+export function ensureValueNode(cell) {
+  if (cell.value == null || typeof cell.value === "string") {
+    const doc = document.implementation.createDocument("", "", null);
+    const obj = doc.createElement("object");
+    obj.setAttribute("label", cell.value ?? "");
+    cell.value = obj;
+  }
+  return cell.value;
+}
+export function setCellDataAttr(cell, key, val) {
+  const node = ensureValueNode(cell);
+  node.setAttribute(key, val);
+}
+export function getCellDataAttr(cell, key) {
+  if (!cell?.value || typeof cell.value === "string") return null;
+  return cell.value.getAttribute?.(key) ?? null;
+}
