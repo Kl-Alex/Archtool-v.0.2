@@ -3,7 +3,7 @@ import Sidebar from "../components/Sidebar";
 import CreateModal from "../components/CreateModal";
 import EditModal from "../components/EditModal";
 import Spinner from "../components/Spinner";
-import ApplicationForm from "../components/ApplicationForm";
+import TechnologyForm from "../components/TechnologyForm";
 import { getToken } from "../utils/auth";
 import { useNotification } from "../components/NotificationContext";
 import { Pencil, Trash2, Info, Filter, XCircle, ArrowUpDown } from "lucide-react";
@@ -13,18 +13,16 @@ import OwnerCombobox from "../components/OwnerCombobox";
 import DomainCombobox from "../components/DomainCombobox";
 import { useHotkeys } from "react-hotkeys-hook";
 
-export default function ApplicationsRegistryPage() {
-  const [applications, setApplications] = useState([]);
+export default function TechnologiesRegistryPage() {
+  const [technologies, setTechnologies] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Новое: поиск/фильтры/сортировка
   const [search, setSearch] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [filterOwner, setFilterOwner] = useState("");
   const [filterDomain, setFilterDomain] = useState("");
   const [sortAsc, setSortAsc] = useState(true);
 
-  // Новое: подсветка изменённого/созданного
   const [highlightedId, setHighlightedId] = useState(null);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -41,15 +39,15 @@ export default function ApplicationsRegistryPage() {
     setShowFilters(false);
   });
 
-  const fetchApplications = async () => {
+  const fetchTechnologies = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/applications", {
+      const res = await fetch("/api/technologies", {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
-      if (!res.ok) throw new Error("Ошибка загрузки приложений");
+      if (!res.ok) throw new Error("Ошибка загрузки технологий");
       const data = await res.json();
-      setApplications(Array.isArray(data) ? data : []);
+      setTechnologies(Array.isArray(data) ? data : []);
     } catch (err) {
       notifyError(err.message);
     } finally {
@@ -58,58 +56,55 @@ export default function ApplicationsRegistryPage() {
   };
 
   useEffect(() => {
-    fetchApplications();
+    fetchTechnologies();
   }, []);
 
-  // Совместим сигнатуру с БС: onCreated(id?) — если форма передаст id, подсветим строку
   const handleCreatedOrUpdated = async (id) => {
-    await fetchApplications();
+    await fetchTechnologies();
     setShowCreateModal(false);
     setShowEditModal(false);
     if (id) {
       setHighlightedId(String(id));
       setTimeout(() => setHighlightedId(null), 5000);
     }
-    notifySuccess("Приложение сохранено");
+    notifySuccess("Технология сохранена");
   };
 
   const handleDelete = async (id) => {
-    const confirmed = window.confirm("Удалить это приложение?");
+    const confirmed = window.confirm("Удалить эту технологию?");
     if (!confirmed) return;
 
-    const res = await fetch(`/api/applications/${id}`, {
+    const res = await fetch(`/api/technologies/${id}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${getToken()}` },
     });
 
     if (res.ok) {
-      notifySuccess("Приложение удалено");
-      fetchApplications();
+      notifySuccess("Технология удалена");
+      fetchTechnologies();
     } else {
       notifyError("Ошибка удаления");
     }
   };
 
-  // Вычисляем уникальные значения для фильтров
-  const owners = [...new Set(applications.map(a => a?.owner).filter(Boolean))];
-  const domains = [...new Set(applications.map(a => a?.it_domain).filter(Boolean))];
+  const owners = [...new Set(technologies.map(t => t?.owner).filter(Boolean))];
+  const domains = [...new Set(technologies.map(t => t?.it_domain).filter(Boolean))];
 
-  // Фильтрация + поиск + сортировка
   const norm = (v) => (v ?? "").toString().toLowerCase();
-  const matchesQuery = (app) => {
+  const matchesQuery = (t) => {
     const q = norm(search);
     if (!q) return true;
     return (
-      norm(app.name).includes(q) ||
-      norm(app.description).includes(q) ||
-      norm(app.owner).includes(q) ||
-      norm(app.it_domain).includes(q)
+      norm(t.name).includes(q) ||
+      norm(t.description).includes(q) ||
+      norm(t.owner).includes(q) ||
+      norm(t.it_domain).includes(q)
     );
   };
 
-  const filtered = applications
-    .filter(a => (!filterOwner || a?.owner === filterOwner))
-    .filter(a => (!filterDomain || a?.it_domain === filterDomain))
+  const filtered = technologies
+    .filter(t => (!filterOwner || t?.owner === filterOwner))
+    .filter(t => (!filterDomain || t?.it_domain === filterDomain))
     .filter(matchesQuery)
     .sort((a, b) => {
       const an = (a?.name ?? "");
@@ -117,7 +112,6 @@ export default function ApplicationsRegistryPage() {
       return sortAsc ? an.localeCompare(bn) : bn.localeCompare(an);
     });
 
-  // Подсветка совпадений из БС
   const highlightMatch = (text, query) => {
     const safe = (text ?? "").toString();
     if (!query) return safe;
@@ -135,12 +129,10 @@ export default function ApplicationsRegistryPage() {
     <div className="flex h-screen bg-gray-50">
       <Sidebar />
       <main className="flex-1 p-6 overflow-auto bg-lentaWhite">
-        {/* Доп: мини-ассистент как у вас */}
         <AssistantPanel />
 
-        {/* Заголовок и действия */}
         <div className="flex items-center justify-between mb-4 gap-2">
-          <h1 className="text-2xl font-bold text-lentaBlue">Реестр приложений</h1>
+          <h1 className="text-2xl font-bold text-lentaBlue">Реестр технологий</h1>
           <div className="flex gap-2">
             <button
               onClick={() => setSortAsc((v) => !v)}
@@ -159,7 +151,6 @@ export default function ApplicationsRegistryPage() {
           </div>
         </div>
 
-        {/* Поиск */}
         <div className="mb-4">
           <input
             type="text"
@@ -170,7 +161,6 @@ export default function ApplicationsRegistryPage() {
           />
         </div>
 
-        {/* Фильтры как в БС */}
         <div className="mb-4 flex items-start flex-wrap sm:flex-nowrap gap-2">
           <div className="flex flex-col gap-2">
             <button
@@ -215,56 +205,56 @@ export default function ApplicationsRegistryPage() {
           </div>
         </div>
 
-        {/* Список */}
         {loading ? (
           <Spinner />
         ) : (
           <ul className="space-y-3">
-            {filtered.map((app) => {
-              const isHighlighted = highlightedId === String(app.id);
+            {filtered.map((t) => {
+              const isHighlighted = highlightedId === String(t.id);
               return (
                 <li
-                  key={app.id}
+                  key={t.id}
                   className={`p-4 bg-white rounded-lg border shadow flex justify-between items-center group transition-colors duration-500 ${
                     isHighlighted ? "bg-lentaYellow border-yellow-400" : ""
                   }`}
                 >
                   <div>
                     <div className="font-semibold text-gray-800">
-                      {highlightMatch(app.name, search)}
+                      {highlightMatch(t.name, search)}
                     </div>
-                    <div className="text-xs text-gray-500">ID: {app.id}</div>
-                    {(app.description || app.owner || app.it_domain) && (
+                    <div className="text-xs text-gray-500">ID: {t.id}</div>
+                    {(t.description || t.owner || t.it_domain) && (
                       <div className="text-xs text-lentaBlue mt-1">
-                        {app.description && (
+                        {t.description && (
                           <span className="mr-2">
-                            {highlightMatch(app.description, search)}
+                            {highlightMatch(t.description, search)}
                           </span>
                         )}
-                        {app.owner && (
+                        {t.owner && (
                           <span className="mr-2">
-                            Владелец: {highlightMatch(app.owner, search)}
+                            Владелец: {highlightMatch(t.owner, search)}
                           </span>
                         )}
-                        {app.it_domain && (
+                        {t.it_domain && (
                           <span>
-                            Домен: {highlightMatch(app.it_domain, search)}
+                            Домен: {highlightMatch(t.it_domain, search)}
                           </span>
                         )}
                       </div>
                     )}
                   </div>
+
                   <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
                     <button
-                      onClick={() => navigate(`/applications/${app.id}`)}
+                      onClick={() => navigate(`/technologies/${t.id}`)}
                       className="text-blue-600 hover:text-blue-800"
-                      title="Паспорт приложения"
+                      title="Паспорт технологии"
                     >
                       <Info size={18} />
                     </button>
                     <button
                       onClick={() => {
-                        setEditingItem(app);
+                        setEditingItem(t);
                         setShowEditModal(true);
                       }}
                       className="text-gray-500 hover:text-lentaBlue"
@@ -273,7 +263,7 @@ export default function ApplicationsRegistryPage() {
                       <Pencil size={18} />
                     </button>
                     <button
-                      onClick={() => handleDelete(app.id)}
+                      onClick={() => handleDelete(t.id)}
                       className="text-red-500 hover:text-red-700"
                       title="Удалить"
                     >
@@ -284,40 +274,31 @@ export default function ApplicationsRegistryPage() {
               );
             })}
             {filtered.length === 0 && (
-              <li className="text-gray-500 text-sm">Нет приложений</li>
+              <li className="text-gray-500 text-sm">Нет технологий</li>
             )}
           </ul>
         )}
 
-        {/* Модалки */}
         {showCreateModal && (
           <CreateModal
-            title="Создание приложения"
+            title="Создание технологии"
             onClose={() => setShowCreateModal(false)}
             onSubmit={() => createFormRef.current && createFormRef.current.submit()}
           >
-            <ApplicationForm
-              ref={createFormRef}
-              onCreated={handleCreatedOrUpdated} // ожидает onCreated(id?) как и в БС
-            />
+            <TechnologyForm ref={createFormRef} onCreated={handleCreatedOrUpdated} />
           </CreateModal>
         )}
 
         {showEditModal && editingItem && (
           <EditModal
-            title="Редактирование приложения"
+            title="Редактирование технологии"
             onClose={() => {
               setShowEditModal(false);
               setEditingItem(null);
             }}
-            onSubmit={() =>
-              document.getElementById("submit-app-form")?.click()
-            }
+            onSubmit={() => document.getElementById("submit-technology-form")?.click()}
           >
-            <ApplicationForm
-              existingData={editingItem}
-              onCreated={handleCreatedOrUpdated}
-            />
+            <TechnologyForm existingData={editingItem} onCreated={handleCreatedOrUpdated} />
           </EditModal>
         )}
       </main>

@@ -7,6 +7,10 @@ import ApplicationsRegistryPage from "./pages/ApplicationsRegistryPage"; // ⬅�
 import ApplicationPassport from "./pages/ApplicationPassport";
 import GraphEditor from "@/grapheditor/pages/GraphEditor";
 import DiagramsList from "./grapheditor/components/DiagramsList";
+import TechnologyPassportPage from "./pages/TechnologyPassportPage";
+import PlatformPassportPage from "./pages/PlatformPassportPage";
+import PlatformsRegistryPage from "./pages/PlatformsRegistryPage";
+import TechnologiesRegistryPage from "./pages/TechnologiesRegistryPage";
 
 import { NotificationProvider } from "./components/NotificationContext";
 
@@ -41,6 +45,11 @@ function App() {
           <Route path="/graph" element={<GraphEditor />} />
           <Route path="/grapheditor/diagrams" element={<DiagramsList />} />
           <Route path="/graph/:id" element={<GraphEditor />} />
+          <Route path="/platforms" element={<PlatformsRegistryPage />} />
+          <Route path="/technologies" element={<TechnologiesRegistryPage />} />
+          <Route path="/technologies/:id" element={<TechnologyPassportPage />} /> {/* если нужна карточка */}
+          <Route path="/platforms/:id" element={<PlatformPassportPage />} />
+
         </Routes>
 
       </Router>

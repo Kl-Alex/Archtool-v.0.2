@@ -11,6 +11,10 @@ import Toolbar from "../components/Toolbar";
 import Palette from "../components/Palette";
 import Canvas from "../components/Canvas";
 import MiniMap from "../components/MiniMap";
+import BindObjectModal from "../components/BindObjectModal";
+
+// ⬇️ добавляем сайдбар приложения
+import Sidebar from "../../components/Sidebar";
 
 export default function GraphEditor() {
   const { id: routeId } = useParams();
@@ -28,6 +32,9 @@ export default function GraphEditor() {
   const [gridEnabled, setGridEnabled] = useState(true);
   const [status, setStatus] = useState("Готово");
   const [autosaveOn, setAutosaveOn] = useState(true);
+  const [showBindModal, setShowBindModal] = useState(false);
+  const openBindModal = () => setShowBindModal(true);
+  const closeBindModal = () => setShowBindModal(false);
 
   // Параметры диаграммы (БД)
   const [id, setId] = useState(routeId || null);
@@ -45,6 +52,12 @@ export default function GraphEditor() {
     { key: "db", label: "БД", style: "shape=cylinder;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;" },
     { key: "cloud", label: "Облако", style: "shape=cloud;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;" },
   ];
+
+  function getSelectedCell() {
+    if (!graph) return null;
+    const cells = graph.getSelectionCells();
+    return cells && cells[0] ? cells[0] : null;
+  }
 
   /** Инициализация mxGraph */
   useEffect(() => {
@@ -70,6 +83,15 @@ export default function GraphEditor() {
 
     // Контейнер под холст
     const graphInst = new mxGraph(containerRef.current);
+    if (graphInst?.container) {
+      graphInst.container.setAttribute("tabindex", "0");
+      // автофокус при открытии редактора
+      setTimeout(() => {
+        try {
+          graphInst.container.focus();
+        } catch {}
+      }, 0);
+    }
 
     // Базовые настройки
     graphInst.setPanning(true);
@@ -86,6 +108,11 @@ export default function GraphEditor() {
     graphInst.view.backgroundColor = "#ffffff";
     graphInst.setTooltips(true);
     graphInst.setAllowLoops(false);
+    graphInst.addListener(mxEvent.CLICK, () => {
+      try {
+        graphInst.container?.focus();
+      } catch {}
+    });
 
     // Включаем дублирование по Alt+Drag (как в draw.io)
     mxGraphHandler.prototype.cloneEnabled = true;
@@ -128,19 +155,43 @@ export default function GraphEditor() {
 
     // Хоткеи (без document.execCommand)
     const keyHandler = new mxKeyHandler(graphInst);
+    keyHandler.isEventIgnored = function (evt) {
+      const t = evt?.target;
+      const tag = (t?.tagName || "").toUpperCase();
+      const isForm =
+        tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || t?.isContentEditable;
+      const ctrlOrMeta = evt?.ctrlKey || evt?.metaKey;
+      const kc = evt?.keyCode || evt?.which;
+      const allowKeys = [27, 46, 8]; // Esc, Delete, Backspace
+      // Разрешаем ctrl/cmd-комбо и Esc/Delete/Backspace даже внутри форм
+      if (ctrlOrMeta || allowKeys.includes(kc)) return false;
+      return isForm;
+    };
     keyHandler.bindKey(46, () => deleteSelection(graphInst)); // Delete
-    keyHandler.bindControlKey(90, () => undoManager.undo());  // Ctrl+Z
-    keyHandler.bindControlKey(89, () => undoManager.redo());  // Ctrl+Y
+    keyHandler.bindControlKey(90, () => undoManager.undo()); // Ctrl+Z
+    keyHandler.bindControlKey(89, () => undoManager.redo()); // Ctrl+Y
     keyHandler.bindControlKey(67, () => mxClipboard.copy(graphInst)); // Ctrl+C
     keyHandler.bindControlKey(86, () => mxClipboard.paste(graphInst)); // Ctrl+V
-    keyHandler.bindControlKey(83, (evt) => { evt?.preventDefault(); onExportXML(graphInst); }); // Ctrl+S (локальный экспорт)
-    keyHandler.bindControlKey(79, (evt) => { evt?.preventDefault(); fileInputRef.current?.click(); }); // Ctrl+O
+    keyHandler.bindControlKey(83, (evt) => {
+      evt?.preventDefault();
+      onExportXML(graphInst);
+    }); // Ctrl+S (локальный экспорт)
+    keyHandler.bindControlKey(79, (evt) => {
+      evt?.preventDefault();
+      fileInputRef.current?.click();
+    }); // Ctrl+O
     keyHandler.bindControlKey(187, () => setZoom((z) => zoomIn(graphInst, z))); // Ctrl+'+'
     keyHandler.bindControlKey(189, () => setZoom((z) => zoomOut(graphInst, z))); // Ctrl+'-'
-    keyHandler.bindControlKey(48, () => setZoom(zoomTo(graphInst, 1)));          // Ctrl+'0'
-    keyHandler.bindControlKey(71, () => toggleGrid(graphInst));                  // Ctrl+G
-    // Дублирование выделения
-    keyHandler.bindControlKey(68, () => duplicateSelection(graphInst));          // Ctrl+D
+    keyHandler.bindControlKey(48, () => setZoom(zoomTo(graphInst, 1))); // Ctrl+'0'
+    keyHandler.bindKey(27, () => {
+      if (showBindModal) {
+        closeBindModal();
+        return;
+      }
+      graphInst.clearSelection();
+    });
+    keyHandler.bindControlKey(71, () => toggleGrid(graphInst)); // Ctrl+G
+    keyHandler.bindControlKey(68, () => duplicateSelection(graphInst)); // Ctrl+D
 
     setGraph(graphInst);
     setUndoMgr(undoManager);
@@ -183,7 +234,9 @@ export default function GraphEditor() {
         alert("Не удалось загрузить диаграмму: " + (e.message || e));
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [graph, id]);
 
   /** Автосохранение (localStorage) */
@@ -198,7 +251,9 @@ export default function GraphEditor() {
           const xml = encodeGraphToXML(graph);
           localStorage.setItem(STORAGE_KEY, xml);
           setStatus("Автосохранено");
-        } catch { /* noop */ }
+        } catch {
+          /* noop */
+        }
       }, 2000);
     }
 
@@ -209,9 +264,13 @@ export default function GraphEditor() {
         decodeXMLIntoGraph(graph, xml);
         setStatus("Автосейв восстановлен");
       }
-    } catch { /* noop */ }
+    } catch {
+      /* noop */
+    }
 
-    return () => { if (timer) clearInterval(timer); };
+    return () => {
+      if (timer) clearInterval(timer);
+    };
   }, [graph, autosaveOn, id]);
 
   /** Действия на графе */
@@ -362,56 +421,86 @@ export default function GraphEditor() {
   }
 
   return (
-    <div className="h-full w-full flex flex-col">
-      {/* Toolbar */}
-      <Toolbar
-        gridEnabled={gridEnabled}
-        autosaveOn={autosaveOn}
-        zoom={zoom}
-        status={status}
-        onAddRect={() => addVertex("rounded=0;whiteSpace=wrap;html=1;")}
-        onAddEllipse={() => addVertex("ellipse;whiteSpace=wrap;html=1;", 80, 80)}
-        onZoomIn={() => setZoom((z) => zoomIn(graph, z))}
-        onZoomOut={() => setZoom((z) => zoomOut(graph, z))}
-        onFit={fitToScreen}
-        onToggleGrid={() => toggleGrid(graph)}
-        onExportXML={() => onExportXML()}
-        onExportSVG={exportSVG}
-        onImportXMLClick={() => fileInputRef.current?.click()}
-        onToggleAutosave={(e) => setAutosaveOn(e.target.checked)}
-      />
+    // ⬇️ общий лэйаут с сайдбаром слева
+    <div className="flex h-screen w-full">
+      <Sidebar />
 
-      {/* Верхняя панель — имя/версия/сохранение и переход к списку */}
-      <div className="flex items-center gap-2 px-2 py-2 border-b bg-white">
-        <input
-          className="border rounded px-2 py-1 text-sm"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Имя диаграммы"
+      {/* Правая часть — весь редактор */}
+      <div className="flex-1 flex flex-col min-w-0 bg-white">
+        {/* Toolbar */}
+        <Toolbar
+          gridEnabled={gridEnabled}
+          autosaveOn={autosaveOn}
+          zoom={zoom}
+          status={status}
+          onAddRect={() => addVertex("rounded=0;whiteSpace=wrap;html=1;")}
+          onAddEllipse={() => addVertex("ellipse;whiteSpace=wrap;html=1;", 80, 80)}
+          onZoomIn={() => setZoom((z) => zoomIn(graph, z))}
+          onZoomOut={() => setZoom((z) => zoomOut(graph, z))}
+          onFit={fitToScreen}
+          onToggleGrid={() => toggleGrid(graph)}
+          onExportXML={() => onExportXML()}
+          onExportSVG={exportSVG}
+          onImportXMLClick={() => fileInputRef.current?.click()}
+          onToggleAutosave={(e) => setAutosaveOn(e.target.checked)}
+          onBindObject={openBindModal}
         />
-        <span className="text-xs text-gray-500">Реестр: {registryType}</span>
-        {version != null && <span className="text-xs text-gray-500">Версия: {version}</span>}
-        <button className="ml-auto px-3 py-1 rounded border hover:bg-gray-50" onClick={saveToServer}>
-          Сохранить в БД
-        </button>
-        <button className="px-3 py-1 rounded border hover:bg-gray-50" onClick={() => nav("/grapheditor/diagrams")}>
-          К списку диаграмм
-        </button>
-      </div>
 
-      {/* Импорт XML input */}
-      <input ref={fileInputRef} type="file" accept=".xml" className="hidden" onChange={onOpenXMLFile} />
+        {/* Верхняя панель — имя/версия/сохранение и переход к списку */}
+        <div className="flex items-center gap-2 px-3 py-2 border-b bg-white">
+          <input
+            className="border rounded px-2 py-1 text-sm"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Имя диаграммы"
+          />
+          <span className="text-xs text-gray-500">Реестр: {registryType}</span>
+          {version != null && (
+            <span className="text-xs text-gray-500">Версия: {version}</span>
+          )}
+          <button
+            className="ml-auto px-3 py-1 rounded border hover:bg-gray-50"
+            onClick={saveToServer}
+          >
+            Сохранить в БД
+          </button>
+          <button
+            className="px-3 py-1 rounded border hover:bg-gray-50"
+            onClick={() => nav("/grapheditor/diagrams")}
+          >
+            К списку диаграмм
+          </button>
+        </div>
 
-      {/* Рабочая область */}
-      <div className="flex-1 grid grid-cols-12 overflow-hidden">
-        {/* Левая панель — палитра */}
-        <Palette graph={graph} palette={palette} />
+        {/* Импорт XML input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".xml"
+          className="hidden"
+          onChange={onOpenXMLFile}
+        />
 
-        {/* Холст */}
-        <Canvas ref={containerRef} />
+        {/* Рабочая область */}
+        <div className="flex-1 grid grid-cols-12 overflow-hidden">
+          {/* Левая панель — палитра */}
+          <Palette graph={graph} palette={palette} />
 
-        {/* Правая панель — миникарта */}
-        <MiniMap graph={graph} />
+          {/* Холст */}
+          <Canvas ref={containerRef} />
+
+          {/* Правая панель — миникарта */}
+          <MiniMap graph={graph} />
+
+          <BindObjectModal
+            isOpen={showBindModal}
+            onClose={closeBindModal}
+            graph={graph}
+            diagramId={id} // uuid строки из твоего состояния
+            selectedCell={getSelectedCell()}
+            onBound={({ object_name }) => setStatus(`Привязано: ${object_name}`)}
+          />
+        </div>
       </div>
     </div>
   );

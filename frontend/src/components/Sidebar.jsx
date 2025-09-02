@@ -1,4 +1,4 @@
-import { LayoutDashboard, Settings, LogOut, BookOpen, AppWindow } from "lucide-react";
+import { LayoutDashboard, Settings, LogOut, BookOpen, AppWindow, Boxes, Share2, Cpu } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { getUserFromToken, removeToken } from "../utils/auth";
 import logo from "/lenta_logo.png";
@@ -9,11 +9,16 @@ const Sidebar = () => {
   const navigate = useNavigate();
   const username = getUserFromToken();
 
+  const isActive = (to) =>
+    location.pathname === to || location.pathname.startsWith(to + "/");
+
   const navItems = [
     { to: "/admin", label: "Админ-панель", icon: Settings },
     { to: "/registry", label: "Бизнес-способности", icon: LayoutDashboard },
     { to: "/applications", label: "Приложения", icon: AppWindow },
-    { to: "/dictionaries", label: "Справочники", icon: BookOpen },
+    { to: "/platforms", label: "Платформы", icon: Boxes },         // <— добавлено
+    { to: "/graph", label: "Граф. редактор", icon: Share2 },  // <— добавлено
+    { to: "/technologies", label: "Технологии", icon: Cpu } // из lucide-react
   ];
 
   const handleLogout = () => {
@@ -37,9 +42,7 @@ const Sidebar = () => {
                   to={to}
                   className={classNames(
                     "flex items-center gap-3 p-2 rounded-lg transition-colors hover:bg-lentaBlue/10 text-gray-700",
-                    {
-                      "bg-lentaBlue/10 text-lentaBlue font-semibold": location.pathname === to,
-                    }
+                    { "bg-lentaBlue/10 text-lentaBlue font-semibold": isActive(to) }
                   )}
                 >
                   <Icon className="w-5 h-5" />

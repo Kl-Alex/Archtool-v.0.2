@@ -33,7 +33,7 @@ func main() {
     AllowOrigins:     []string{"http://localhost:5173"},
     AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
     AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
-    ExposeHeaders:    []string{"Content-Length"},
+    ExposeHeaders:    []string{"Content-Length", "ETag"},
     AllowCredentials: true,
 }))
 
@@ -115,6 +115,26 @@ authRoutes.DELETE("/diagrams/:id", dh.DeleteDiagram)              // удали�
 // История версий диаграмм
 authRoutes.GET("/diagrams/:id/versions", dh.ListVersions)         // список версий
 authRoutes.GET("/diagrams/:id/versions/:version", dh.GetVersion)  // конкретная версия
+
+dbh := handlers.NewDiagramBindingsHandler()
+authRoutes.POST("/diagrams/:id/bindings", dbh.CreateBinding)
+authRoutes.GET("/diagrams/:id/bindings", dbh.GetBindingByCell)
+authRoutes.DELETE("/diagrams/:id/bindings", dbh.DeleteBindingByCell)
+
+authRoutes.GET("/technologies", handlers.GetTechnologies)
+authRoutes.GET("technologies/:id", handlers.GetTechnologyByID)
+authRoutes.POST("/technologies", handlers.CreateTechnology)
+authRoutes.PUT("/technologies/:id", handlers.UpdateTechnology)
+authRoutes.DELETE("/technologies/:id", handlers.DeleteTechnology)
+
+authRoutes.GET("/platforms", handlers.GetPlatforms)
+authRoutes.GET("/platforms/:id", handlers.GetPlatformByID)
+authRoutes.POST("/platforms", handlers.CreatePlatform)
+authRoutes.PUT("/platforms/:id", handlers.UpdatePlatform)
+authRoutes.DELETE("/platforms/:id", handlers.DeletePlatform)
+
+
+
 
 	// Запуск сервера
 	port := os.Getenv("PORT")

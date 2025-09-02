@@ -1,4 +1,5 @@
 export default function Toolbar({
+  onBindObject,
   gridEnabled,
   autosaveOn,
   zoom,
@@ -55,6 +56,9 @@ export default function Toolbar({
       </button>
       <button className="px-3 py-1 rounded border hover:bg-gray-50" onClick={onImportXMLClick} title="Открыть XML (Ctrl+O)">
         Импорт XML
+      </button>
+      <button className="px-3 py-1 rounded border hover:bg-gray-50" onClick={onBindObject}>
+        Привязать объект
       </button>
 
       <div className="ml-auto flex items-center gap-3 text-sm text-gray-600">

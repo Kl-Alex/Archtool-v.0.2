@@ -2,7 +2,7 @@ import { useEffect, useState, forwardRef, useImperativeHandle } from "react";
 import { getToken } from "../utils/auth";
 import { useNotification } from "../components/NotificationContext";
 
-const ApplicationForm = forwardRef(({ onCreated, existingData }, ref) => {
+const PlatformForm = forwardRef(({ onCreated, existingData }, ref) => {
   const [objectTypeId, setObjectTypeId] = useState(null);
   const [attributes, setAttributes] = useState([]);
   const [attributeValues, setAttributeValues] = useState({});
@@ -17,7 +17,7 @@ const ApplicationForm = forwardRef(({ onCreated, existingData }, ref) => {
           credentials: "include",
         });
         const types = await res.json();
-        const type = Array.isArray(types) ? types.find(t => t.name === "Приложение") : null;
+        const type = Array.isArray(types) ? types.find(t => t.name === "Платформа") : null;
         if (!type) return;
 
         setObjectTypeId(type.id);
@@ -29,10 +29,8 @@ const ApplicationForm = forwardRef(({ onCreated, existingData }, ref) => {
         const attrs = await attrRes.json();
         setAttributes(Array.isArray(attrs) ? attrs : []);
 
-        // Заполняем initial values при редактировании
         if (existingData) {
           const valuesMap = {};
-          // поддержим оба варианта: existingData.attribute_values и existingData.attributes
           const src =
             Array.isArray(existingData?.attribute_values)
               ? existingData.attribute_values
@@ -44,7 +42,6 @@ const ApplicationForm = forwardRef(({ onCreated, existingData }, ref) => {
             const found = src.find(v => (v.attribute_id ?? v.id) === attr.id);
             if (!found) continue;
 
-            // value может лежать в value_text (часто так на бэке), либо в value
             const raw =
               found.value_text !== undefined && found.value_text !== null
                 ? found.value_text
@@ -56,7 +53,6 @@ const ApplicationForm = forwardRef(({ onCreated, existingData }, ref) => {
               try {
                 valuesMap[attr.id] = Array.isArray(raw) ? raw : JSON.parse(raw);
               } catch {
-                // fallback: строку в массив, если нужно
                 valuesMap[attr.id] = Array.isArray(raw) ? raw : (raw ? [String(raw)] : []);
               }
             } else {
@@ -81,19 +77,14 @@ const ApplicationForm = forwardRef(({ onCreated, existingData }, ref) => {
   const validateDate = (val) => {
     if (!val) return true;
     const v = String(val).toLowerCase().trim();
-    // дд.мм.гггг
-    const full = /^([0-2]\d|3[0-1])\.(0\d|1[0-2])\.\d{4}$/;
-    // мм.гггг
-    const monthYear = /^(0\d|1[0-2])\.\d{4}$/;
-    // qn.гггг
-    const quarter = /^q[1-4]\.\d{4}$/;
-    // гггг
-    const year = /^\d{4}$/;
+    const full = /^([0-2]\d|3[0-1])\.(0\d|1[0-2])\.\d{4}$/; // dd.mm.yyyy
+    const monthYear = /^(0\d|1[0-2])\.\d{4}$/;             // mm.yyyy
+    const quarter = /^q[1-4]\.\d{4}$/;                     // qn.yyyy
+    const year = /^\d{4}$/;                                // yyyy
     return full.test(v) || monthYear.test(v) || quarter.test(v) || year.test(v);
   };
 
   const handleSubmit = async () => {
-    // Валидация обязательных + даты
     const newErrors = {};
     for (const attr of attributes) {
       const val = attributeValues[attr.id];
@@ -127,9 +118,10 @@ const ApplicationForm = forwardRef(({ onCreated, existingData }, ref) => {
           attribute_id: Number(attrId),
           value: out,
         };
-    })};
+      }),
+    };
 
-    const url = existingData ? `/api/applications/${existingData.id}` : `/api/applications`;
+    const url = existingData ? `/api/platforms/${existingData.id}` : `/api/platforms`;
     const method = existingData ? "PUT" : "POST";
 
     try {
@@ -163,8 +155,6 @@ const ApplicationForm = forwardRef(({ onCreated, existingData }, ref) => {
     submit: handleSubmit,
   }));
 
-  const filteredAttributes = attributes; // у приложений родителя нет — ничего не скрываем
-
   return (
     <form
       className="bg-white p-6 rounded-lg shadow-sm border space-y-6"
@@ -173,7 +163,7 @@ const ApplicationForm = forwardRef(({ onCreated, existingData }, ref) => {
         handleSubmit();
       }}
     >
-      {filteredAttributes.map(attr => (
+      {attributes.map(attr => (
         <div key={attr.id} className="flex flex-col">
           <label className="text-sm font-medium text-gray-700 mb-1">
             {attr.display_name}
@@ -190,15 +180,15 @@ const ApplicationForm = forwardRef(({ onCreated, existingData }, ref) => {
         </div>
       ))}
 
-      {/* скрытая кнопка для совместимости с onSubmit={() => document.getElementById("submit-app-form")?.click()} */}
-      <button id="submit-app-form" type="button" className="hidden" onClick={handleSubmit} />
+      {/* скрытая кнопка для совместимости с onSubmit={() => document.getElementById("submit-platform-form")?.click()} */}
+      <button id="submit-platform-form" type="button" className="hidden" onClick={handleSubmit} />
     </form>
   );
 });
 
-export default ApplicationForm;
+export default PlatformForm;
 
-/* ===================== helper input ===================== */
+/* ========= helper input ========= */
 
 function SelectField({ attr, value, onChange, error, helperText }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -209,9 +199,6 @@ function SelectField({ attr, value, onChange, error, helperText }) {
   const isMultiple = !!attr.is_multiple;
   const selected = value ?? (isMultiple ? [] : "");
 
-  // Источник опций:
-  // 1) dictionary_name -> тянем с бэка /api/dictionaries/:name (ожидаем массив объектов с .value)
-  // 2) options (строка JSON или массив/список)
   const rawOptions = attr.options;
   const options = attr.dictionary_name
     ? dictOptions
@@ -251,7 +238,6 @@ function SelectField({ attr, value, onChange, error, helperText }) {
     String(opt).toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Тип: дата
   if (attr.type === "date") {
     return (
       <>
@@ -269,7 +255,6 @@ function SelectField({ attr, value, onChange, error, helperText }) {
     );
   }
 
-  // Тип: select множественный
   if (attr.type === "select" && isMultiple) {
     return (
       <div className="relative">
@@ -333,50 +318,45 @@ function SelectField({ attr, value, onChange, error, helperText }) {
     );
   }
 
-// Тип: select одиночный
-if (attr.type === "select") {
-  return (
-    <div className="relative">
-      <input
-        type="text"
-        className={`w-full px-3 py-2 border rounded-md text-sm ${
-          error ? "border-red-500 ring-1 ring-red-300" : "border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-100"
-        }`}
-        value={searchTerm || (selected ?? "")}
-        placeholder="Выберите..."
-        onChange={(e) => {
-          setSearchTerm(e.target.value);
-          onChange(e.target.value);
-        }}
-        onFocus={() => setIsOpen(true)}
-        onBlur={() => setTimeout(() => setIsOpen(false), 150)}
-      />
-      {helperText && (
-        <span className="text-xs text-red-600 mt-1 block">{helperText}</span>
-      )}
-      {isOpen && filtered.length > 0 && (
-        <ul className="absolute z-10 w-full bg-white border rounded shadow mt-1 max-h-40 overflow-y-auto">
-          {filtered.map((opt) => (
-            <li
-              key={String(opt)}
-              className="px-3 py-1 hover:bg-blue-100 cursor-pointer text-sm"
-              onClick={() => {
-                onChange(opt);
-                setSearchTerm(String(opt));
-                setIsOpen(false);
-              }}
-            >
-              {String(opt)}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
+  if (attr.type === "select") {
+    return (
+      <div className="relative">
+        <input
+          type="text"
+          className={`w-full px-3 py-2 border rounded-md text-sm ${
+            error ? "border-red-500 ring-1 ring-red-300" : "border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-100"
+          }`}
+          value={searchTerm || (selected ?? "")}
+          placeholder="Выберите..."
+          onChange={(e) => {
+            setSearchTerm(e.target.value);
+            onChange(e.target.value);
+          }}
+          onFocus={() => setIsOpen(true)}
+          onBlur={() => setTimeout(() => setIsOpen(false), 150)}
+        />
+        {helperText && <span className="text-xs text-red-600 mt-1 block">{helperText}</span>}
+        {isOpen && filtered.length > 0 && (
+          <ul className="absolute z-10 w-full bg-white border rounded shadow mt-1 max-h-40 overflow-y-auto">
+            {filtered.map((opt) => (
+              <li
+                key={String(opt)}
+                className="px-3 py-1 hover:bg-blue-100 cursor-pointer text-sm"
+                onClick={() => {
+                  onChange(opt);
+                  setSearchTerm(String(opt));
+                  setIsOpen(false);
+                }}
+              >
+                {String(opt)}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    );
+  }
 
-
-  // По умолчанию — текст
   return (
     <>
       <input
@@ -392,7 +372,6 @@ if (attr.type === "select") {
   );
 }
 
-/* Утилита безопасного парсинга массивов из строки JSON */
 function safeParseArray(str) {
   try {
     const v = JSON.parse(str);
