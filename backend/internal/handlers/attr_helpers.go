@@ -1,4 +1,4 @@
-package utils
+package handlers
 
 import (
 	"encoding/json"
@@ -7,8 +7,8 @@ import (
 	"strings"
 )
 
-// IsValidDate проверяет форматы: dd.mm.yyyy, mm.yyyy, q1.yyyy, yyyy (регистр q/Q не важен)
-func IsValidDate(v string) bool {
+// Форматы: дд.мм.гггг, мм.гггг, qn.гггг, гггг
+func isValidDate(v string) bool {
 	if v == "" {
 		return true
 	}
@@ -27,8 +27,7 @@ func IsValidDate(v string) bool {
 	return false
 }
 
-// IntFromAny — безопасное извлечение int из interface{}
-func IntFromAny(v interface{}) int {
+func intFromAny(v interface{}) int {
 	switch t := v.(type) {
 	case float64:
 		return int(t)
@@ -46,9 +45,7 @@ func IntFromAny(v interface{}) int {
 	return 0
 }
 
-// ToString — сериализует значение в строку для value_text
-// bool -> "true"/"false", числа без экспоненты, всё остальное -> JSON
-func ToString(v interface{}) string {
+func toString(v interface{}) string {
 	switch t := v.(type) {
 	case string:
 		return t
@@ -60,7 +57,7 @@ func ToString(v interface{}) string {
 	case float64:
 		return strconv.FormatFloat(t, 'f', -1, 64)
 	case int:
-		return strconv.Itoa(t)
+		return strconv.FormatInt(int64(t), 10)
 	case int32:
 		return strconv.FormatInt(int64(t), 10)
 	case int64:

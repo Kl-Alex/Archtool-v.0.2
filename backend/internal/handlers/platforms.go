@@ -7,9 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
-	"regexp"
 	"strconv"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/lib/pq"
@@ -444,71 +442,3 @@ func DeletePlatform(c *gin.Context) {
 // helpers
 // -----------------
 
-func isValidDate(v string) bool {
-	if v == "" {
-		return true
-	}
-	s := strings.ToLower(strings.TrimSpace(v))
-	patterns := []string{
-		`^([0-2]\d|3[0-1])\.(0\d|1[0-2])\.\d{4}$`, // dd.mm.yyyy
-		`^(0\d|1[0-2])\.\d{4}$`,                   // mm.yyyy
-		`^q[1-4]\.\d{4}$`,                        // qn.yyyy
-		`^\d{4}$`,                                // yyyy
-	}
-	for _, pat := range patterns {
-		if ok, _ := regexp.MatchString(pat, s); ok {
-			return true
-		}
-	}
-	return false
-}
-
-func intFromAny(v interface{}) int {
-	switch t := v.(type) {
-	case float64:
-		return int(t)
-	case int:
-		return t
-	case int32:
-		return int(t)
-	case int64:
-		return int(t)
-	case string:
-		if n, err := strconv.Atoi(t); err == nil {
-			return n
-		}
-	}
-	return 0
-}
-
-func toString(v interface{}) string {
-	switch t := v.(type) {
-	case string:
-		return t
-	case bool:
-		if t {
-			return "true"
-		}
-		return "false"
-	case float64:
-		return strconv.FormatFloat(t, 'f', -1, 64)
-	case int, int32, int64:
-		return strconv.FormatInt(reflectToInt64(t), 10)
-	default:
-		b, _ := json.Marshal(t)
-		return string(b)
-	}
-}
-
-func reflectToInt64(v interface{}) int64 {
-	switch t := v.(type) {
-	case int:
-		return int64(t)
-	case int32:
-		return int64(t)
-	case int64:
-		return t
-	default:
-		return 0
-	}
-}

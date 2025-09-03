@@ -7,7 +7,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
-
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -168,7 +167,7 @@ func CreateApplication(c *gin.Context) {
 			return
 		}
 
-		// валидация по типам
+		// Валидация по типам
 		switch attrType {
 		case "number":
 			if _, err := strconv.ParseFloat(attr.Value, 64); err != nil {
@@ -237,6 +236,7 @@ func CreateApplication(c *gin.Context) {
 			return
 		}
 
+		// insert
 		if _, err := tx.Exec(`
 			INSERT INTO attribute_values (object_type_id, object_id, attribute_id, value_text)
 			VALUES ($1, $2, $3, $4)
@@ -266,8 +266,7 @@ func UpdateApplication(c *gin.Context) {
 
 	objectID := c.Param("id")
 
-	// принимаем такой же контракт, как в POST:
-	// { attributes: [{attribute_id, value}] }
+	// такой же контракт, как в POST: { attributes: [{attribute_id, value}] }
 	var input map[string]interface{}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
@@ -329,6 +328,7 @@ func UpdateApplication(c *gin.Context) {
 			return
 		}
 
+		// валидация
 		switch attrType {
 		case "number":
 			if _, err := strconv.ParseFloat(p.Value, 64); err != nil {
@@ -397,6 +397,7 @@ func UpdateApplication(c *gin.Context) {
 			return
 		}
 
+		// upsert
 		if _, err := tx.Exec(`
 			INSERT INTO attribute_values (object_type_id, object_id, attribute_id, value_text)
 			VALUES ($1, $2, $3, $4)
@@ -434,5 +435,3 @@ func DeleteApplication(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Deleted"})
 }
-
-// ----------------- helpers -----------------
