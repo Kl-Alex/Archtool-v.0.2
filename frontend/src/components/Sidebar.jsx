@@ -17,8 +17,8 @@ const Sidebar = () => {
     { to: "/registry", label: "Бизнес-способности", icon: LayoutDashboard },
     { to: "/applications", label: "Приложения", icon: AppWindow },
     { to: "/platforms", label: "Платформы", icon: Boxes },         // <— добавлено
-    { to: "/graph", label: "Граф. редактор", icon: Share2 },  // <— добавлено
-    { to: "/technologies", label: "Технологии", icon: Cpu } // из lucide-react
+    { to: "/technologies", label: "Технологии", icon: Cpu }, // из lucide-react
+    { to: "/graph", label: "Граф. редактор", icon: Share2 }  // <— добавлено
   ];
 
   const handleLogout = () => {

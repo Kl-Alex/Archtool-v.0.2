@@ -119,3 +119,5 @@ bpmn io кастомная нотация
 связи между объектамии
 связи диаграм
  <Route path="/platforms/:id" element={<PlatformPassportPage />} /> {/* если есть страница паспорта */}
+
+

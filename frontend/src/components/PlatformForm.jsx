@@ -1,14 +1,13 @@
 import { useEffect, useState, forwardRef, useImperativeHandle } from "react";
 import { getToken } from "../utils/auth";
-import { useNotification } from "../components/NotificationContext";
 
-const PlatformForm = forwardRef(({ onCreated, existingData }, ref) => {
+const PlatformForm = forwardRef(({ onCreated, existingData, notifyError }, ref) => {
   const [objectTypeId, setObjectTypeId] = useState(null);
   const [attributes, setAttributes] = useState([]);
   const [attributeValues, setAttributeValues] = useState({});
   const [errors, setErrors] = useState({});
-  const { notifyError } = useNotification();
 
+  // Загружаем object_type_id для "Платформа" и её атрибуты
   useEffect(() => {
     const fetchObjectTypeAndAttributes = async () => {
       try {
@@ -17,7 +16,7 @@ const PlatformForm = forwardRef(({ onCreated, existingData }, ref) => {
           credentials: "include",
         });
         const types = await res.json();
-        const type = Array.isArray(types) ? types.find(t => t.name === "Платформа") : null;
+        const type = Array.isArray(types) ? types.find((t) => t.name === "Платформа") : null;
         if (!type) return;
 
         setObjectTypeId(type.id);
@@ -27,33 +26,24 @@ const PlatformForm = forwardRef(({ onCreated, existingData }, ref) => {
           credentials: "include",
         });
         const attrs = await attrRes.json();
-        setAttributes(Array.isArray(attrs) ? attrs : []);
+        const safeAttrs = Array.isArray(attrs) ? attrs : [];
+        setAttributes(safeAttrs);
 
-        if (existingData) {
+        // Восстанавливаем значения из existingData.attributes (единый контракт)
+        if (existingData && Array.isArray(existingData.attributes)) {
           const valuesMap = {};
-          const src =
-            Array.isArray(existingData?.attribute_values)
-              ? existingData.attribute_values
-              : Array.isArray(existingData?.attributes)
-              ? existingData.attributes
-              : [];
-
-          for (const attr of attrs) {
-            const found = src.find(v => (v.attribute_id ?? v.id) === attr.id);
+          for (const attr of safeAttrs) {
+            const found = existingData.attributes.find((a) => a.attribute_id === attr.id);
             if (!found) continue;
 
             const raw =
-              found.value_text !== undefined && found.value_text !== null
-                ? found.value_text
-                : found.value !== undefined && found.value !== null
-                ? found.value
-                : "";
+              found.value_text ?? found.value ?? "";
 
             if (attr.type === "select" && attr.is_multiple) {
               try {
                 valuesMap[attr.id] = Array.isArray(raw) ? raw : JSON.parse(raw);
               } catch {
-                valuesMap[attr.id] = Array.isArray(raw) ? raw : (raw ? [String(raw)] : []);
+                valuesMap[attr.id] = Array.isArray(raw) ? raw : raw ? [String(raw)] : [];
               }
             } else {
               valuesMap[attr.id] = raw;
@@ -62,7 +52,7 @@ const PlatformForm = forwardRef(({ onCreated, existingData }, ref) => {
           setAttributeValues(valuesMap);
         }
       } catch (e) {
-        console.error(e);
+        console.error("Ошибка загрузки типа/атрибутов:", e);
       }
     };
 
@@ -70,10 +60,11 @@ const PlatformForm = forwardRef(({ onCreated, existingData }, ref) => {
   }, [existingData]);
 
   const handleAttrChange = (attrId, value) => {
-    setAttributeValues(prev => ({ ...prev, [attrId]: value }));
-    setErrors(prev => ({ ...prev, [attrId]: false }));
+    setAttributeValues((prev) => ({ ...prev, [attrId]: value }));
+    setErrors((prev) => ({ ...prev, [attrId]: false }));
   };
 
+  // Проверка форматов даты (совпадает с бэкендом)
   const validateDate = (val) => {
     if (!val) return true;
     const v = String(val).toLowerCase().trim();
@@ -85,6 +76,7 @@ const PlatformForm = forwardRef(({ onCreated, existingData }, ref) => {
   };
 
   const handleSubmit = async () => {
+    // Required + локальная проверка дат
     const newErrors = {};
     for (const attr of attributes) {
       const val = attributeValues[attr.id];
@@ -92,9 +84,12 @@ const PlatformForm = forwardRef(({ onCreated, existingData }, ref) => {
       if (attr.is_required) {
         const empty =
           (attr.type === "select" && attr.is_multiple && (!Array.isArray(val) || val.length === 0)) ||
-          (val === undefined || val === null || String(val).trim() === "");
+          val === undefined ||
+          val === null ||
+          String(val).trim() === "";
         if (empty) newErrors[attr.id] = "Обязательное поле";
       }
+
       if (attr.type === "date" && val && !validateDate(val)) {
         newErrors[attr.id] = "Неверный формат даты";
       }
@@ -106,18 +101,16 @@ const PlatformForm = forwardRef(({ onCreated, existingData }, ref) => {
       return false;
     }
 
+    // Формируем payload: такой же контракт, как у БС
     const payload = {
       object_type_id: objectTypeId,
       attributes: Object.entries(attributeValues).map(([attrId, value]) => {
-        const attr = attributes.find(a => a.id === Number(attrId));
+        const meta = attributes.find((a) => a.id === Number(attrId));
         const out =
-          attr?.type === "select" && attr.is_multiple
+          meta?.type === "select" && meta.is_multiple
             ? JSON.stringify(value ?? [])
             : value;
-        return {
-          attribute_id: Number(attrId),
-          value: out,
-        };
+        return { attribute_id: Number(attrId), value: out };
       }),
     };
 
@@ -145,15 +138,13 @@ const PlatformForm = forwardRef(({ onCreated, existingData }, ref) => {
         return false;
       }
     } catch (err) {
-      console.error("Ошибка сети:", err);
+      console.error("Сетевая ошибка при сохранении:", err);
       notifyError?.("Сетевая ошибка при сохранении");
       return false;
     }
   };
 
-  useImperativeHandle(ref, () => ({
-    submit: handleSubmit,
-  }));
+  useImperativeHandle(ref, () => ({ submit: handleSubmit }));
 
   return (
     <form
@@ -163,7 +154,7 @@ const PlatformForm = forwardRef(({ onCreated, existingData }, ref) => {
         handleSubmit();
       }}
     >
-      {attributes.map(attr => (
+      {attributes.map((attr) => (
         <div key={attr.id} className="flex flex-col">
           <label className="text-sm font-medium text-gray-700 mb-1">
             {attr.display_name}
@@ -180,7 +171,7 @@ const PlatformForm = forwardRef(({ onCreated, existingData }, ref) => {
         </div>
       ))}
 
-      {/* скрытая кнопка для совместимости с onSubmit={() => document.getElementById("submit-platform-form")?.click()} */}
+      {/* Скрытая кнопка для программного submit */}
       <button id="submit-platform-form" type="button" className="hidden" onClick={handleSubmit} />
     </form>
   );
@@ -203,11 +194,12 @@ function SelectField({ attr, value, onChange, error, helperText }) {
   const options = attr.dictionary_name
     ? dictOptions
     : Array.isArray(rawOptions)
-      ? rawOptions.map(o => (typeof o === "string" ? o : o.value))
+      ? rawOptions.map((o) => (typeof o === "string" ? o : o.value))
       : typeof rawOptions === "string" && rawOptions.trim()
         ? safeParseArray(rawOptions)
         : [];
 
+  // Подтягиваем справочник по имени, если указан
   useEffect(() => {
     const dictName =
       typeof attr.dictionary_name === "object"
@@ -219,15 +211,15 @@ function SelectField({ attr, value, onChange, error, helperText }) {
         headers: { Authorization: `Bearer ${getToken()}` },
         credentials: "include",
       })
-        .then(res => res.json())
-        .then(data => {
+        .then((res) => res.json())
+        .then((data) => {
           const values = Array.isArray(data)
-            ? data.map(d => (typeof d === "string" ? d : d.value))
+            ? data.map((d) => (typeof d === "string" ? d : d.value))
             : [];
           setDictOptions(values);
           setLoadedDictName(dictName);
         })
-        .catch(err => {
+        .catch((err) => {
           console.error("Ошибка загрузки справочника:", err);
           setDictOptions([]);
         });
@@ -282,7 +274,7 @@ function SelectField({ attr, value, onChange, error, helperText }) {
           className={`w-full px-3 py-2 border rounded-md text-sm ${
             error ? "border-red-500 ring-1 ring-red-300" : "border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-100"
           }`}
-          placeholder="Поиск и выбор..."
+          placeholder="Поиск и выбор…"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           onFocus={() => setIsOpen(true)}
@@ -319,6 +311,7 @@ function SelectField({ attr, value, onChange, error, helperText }) {
   }
 
   if (attr.type === "select") {
+    // Single-select — сохраняем только по клику из списка
     return (
       <div className="relative">
         <input
@@ -327,15 +320,20 @@ function SelectField({ attr, value, onChange, error, helperText }) {
             error ? "border-red-500 ring-1 ring-red-300" : "border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-100"
           }`}
           value={searchTerm || (selected ?? "")}
-          placeholder="Выберите..."
+          placeholder="Выберите…"
           onChange={(e) => {
-            setSearchTerm(e.target.value);
-            onChange(e.target.value);
+            setSearchTerm(e.target.value); // это поиск, не сохраняем значение
           }}
           onFocus={() => setIsOpen(true)}
-          onBlur={() => setTimeout(() => setIsOpen(false), 150)}
+          onBlur={() => {
+            setTimeout(() => setIsOpen(false), 150);
+            if (searchTerm && !options.some((o) => String(o) === searchTerm)) {
+              setSearchTerm(""); // откат к сохранённому selected
+            }
+          }}
         />
         {helperText && <span className="text-xs text-red-600 mt-1 block">{helperText}</span>}
+
         {isOpen && filtered.length > 0 && (
           <ul className="absolute z-10 w-full bg-white border rounded shadow mt-1 max-h-40 overflow-y-auto">
             {filtered.map((opt) => (
@@ -343,7 +341,7 @@ function SelectField({ attr, value, onChange, error, helperText }) {
                 key={String(opt)}
                 className="px-3 py-1 hover:bg-blue-100 cursor-pointer text-sm"
                 onClick={() => {
-                  onChange(opt);
+                  onChange(opt);                 // сохраняем только здесь
                   setSearchTerm(String(opt));
                   setIsOpen(false);
                 }}
@@ -357,6 +355,7 @@ function SelectField({ attr, value, onChange, error, helperText }) {
     );
   }
 
+  // Текстовое поле по умолчанию
   return (
     <>
       <input
