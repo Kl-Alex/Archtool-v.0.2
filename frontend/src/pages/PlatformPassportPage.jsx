@@ -1,44 +1,134 @@
-import { useEffect, useState, useRef } from "react";
+// src/pages/PlatformPassportPage.jsx
+import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import Spinner from "../components/Spinner";
 import EditModal from "../components/EditModal";
-import PlatformForm from "../components/PlatformForm"; // <-- если другое имя, замени
+import PlatformForm from "../components/PlatformForm"; // если другое имя — замени
 import { getToken } from "../utils/auth";
 import { useNotification } from "../components/NotificationContext";
 import { Pencil, Trash2, ArrowLeft } from "lucide-react";
 
+// ---------- helpers ----------
+function safeText(x) {
+  if (x == null) return "";
+  if (typeof x === "string" || typeof x === "number" || typeof x === "boolean") return String(x);
+  try {
+    return JSON.stringify(x);
+  } catch {
+    return String(x);
+  }
+}
+
+function renderValue(raw) {
+  if (raw == null) return "—";
+  if (raw === true || raw === "true") return "Да";
+  if (raw === false || raw === "false") return "Нет";
+  if (typeof raw === "string") {
+    const s = raw.trim();
+    // поддержка JSON-строк/массивов (multiple select и т.п.)
+    if ((s.startsWith("[") && s.endsWith("]")) || (s.startsWith('"') && s.endsWith('"'))) {
+      try {
+        const parsed = JSON.parse(s);
+        if (Array.isArray(parsed)) return parsed.join(", ");
+        if (typeof parsed === "string") return parsed;
+      } catch { /* ignore */ }
+    }
+    return s || "—";
+  }
+  return safeText(raw) || "—";
+}
+
 /** Нормализация ответа GET /api/platforms/:id
- * Бэк может отдавать поля как { displayName, value } — приводим к плоскому виду:
- * {
- *   id, name, description, owner, it_domain,
- *   attributes: [ {name, display_name, value_text}, ... ]
- * }
+ * Поддерживает:
+ * 1) { id, attributes: [{attribute_id, name, display_name, value_text}] }
+ * 2) плоский объект: { id, name: {displayName, value} } или { id, name: "..." }
  */
 function normalizePlatform(json) {
   if (!json || typeof json !== "object") {
     return { id: undefined, name: "", description: "", owner: "", it_domain: "", attributes: [] };
   }
 
+  // --- ВАРИАНТ 1: attributes — массив
+  if (Array.isArray(json.attributes)) {
+    const attrs = json.attributes.map((a) => ({
+      attribute_id: a.attribute_id ?? a.id,
+      name: typeof a.name === "string" ? a.name : String(a.name ?? ""),
+      display_name: typeof a.display_name === "string" ? a.display_name : String(a.display_name ?? a.name ?? ""),
+      value_text:
+        a.value_text != null
+          ? (typeof a.value_text === "string" || typeof a.value_text === "number" || typeof a.value_text === "boolean"
+              ? String(a.value_text)
+              : JSON.stringify(a.value_text))
+          : (a.value != null
+              ? (typeof a.value === "string" ? a.value : JSON.stringify(a.value))
+              : ""),
+    }));
+
+    const getVal = (key) => attrs.find((x) => x.name === key || x.display_name === key)?.value_text ?? "";
+    return {
+      id: json.id,
+      name: String(getVal("name") || ""),
+      description: String(getVal("description") || ""),
+      owner: String(getVal("owner") || ""),
+      it_domain: String(getVal("it_domain") || ""),
+      attributes: attrs,
+    };
+  }
+
+  // --- ВАРИАНТ 1.1: attributes — объект-словарь -> конвертируем в массив
+  if (json.attributes && typeof json.attributes === "object") {
+    const arr = Object.entries(json.attributes).map(([k, v]) => {
+      const display = v && typeof v === "object" && "display_name" in v ? v.display_name : k;
+      const val =
+        v && typeof v === "object" && "value_text" in v
+          ? v.value_text
+          : v && typeof v === "object" && "value" in v
+          ? v.value
+          : v;
+      return {
+        attribute_id: v?.attribute_id ?? v?.id,
+        name: k,
+        display_name: typeof display === "string" ? display : String(display ?? k),
+        value_text:
+          typeof val === "string" || typeof val === "number" || typeof val === "boolean"
+            ? String(val)
+            : val != null
+            ? JSON.stringify(val)
+            : "",
+      };
+    });
+    return normalizePlatform({ ...json, attributes: arr });
+  }
+
+  // --- ВАРИАНТ 2: плоский объект
   const attrs = [];
   let name = "", description = "", owner = "", it_domain = "";
 
   for (const [key, val] of Object.entries(json)) {
-    if (key === "id" || key === "_labels") continue;
+    if (key === "id" || key === "_labels" || key === "attributes") continue;
 
     if (val && typeof val === "object" && "value" in val) {
-      const display_name = val.displayName || key;
-      const value_text = val.value ?? "";
+      const display_name = typeof val.displayName === "string" ? val.displayName : key;
+      const value_text =
+        val.value == null
+          ? ""
+          : (typeof val.value === "string" || typeof val.value === "number" || typeof val.value === "boolean"
+              ? String(val.value)
+              : JSON.stringify(val.value));
       attrs.push({ name: key, display_name, value_text });
-
       if (key === "name") name = String(value_text || "");
       if (key === "description") description = String(value_text || "");
       if (key === "owner") owner = String(value_text || "");
       if (key === "it_domain") it_domain = String(value_text || "");
     } else {
-      const value_text = val ?? "";
+      const value_text =
+        val == null
+          ? ""
+          : (typeof val === "string" || typeof val === "number" || typeof val === "boolean"
+              ? String(val)
+              : JSON.stringify(val));
       attrs.push({ name: key, display_name: key, value_text });
-
       if (key === "name") name = String(value_text || "");
       if (key === "description") description = String(value_text || "");
       if (key === "owner") owner = String(value_text || "");
@@ -46,37 +136,10 @@ function normalizePlatform(json) {
     }
   }
 
-  return {
-    id: json.id,
-    name,
-    description,
-    owner,
-    it_domain,
-    attributes: attrs,
-  };
+  return { id: json.id, name, description, owner, it_domain, attributes: attrs };
 }
 
-// Рендер значения (множественный select/boolean и т.п.)
-function renderValue(raw) {
-  if (raw == null) return "";
-  if (raw === true || raw === "true") return "Да";
-  if (raw === false || raw === "false") return "Нет";
-
-  if (typeof raw === "string") {
-    const s = raw.trim();
-    if ((s.startsWith("[") && s.endsWith("]")) || (s.startsWith('"') && s.endsWith('"'))) {
-      try {
-        const parsed = JSON.parse(s);
-        if (Array.isArray(parsed)) return parsed.join(", ");
-        if (typeof parsed === "string") return parsed;
-      } catch {
-        // покажем как есть
-      }
-    }
-  }
-  return String(raw);
-}
-
+// ---------- component ----------
 export default function PlatformPassportPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -133,7 +196,12 @@ export default function PlatformPassportPage() {
     notifySuccess("Платформа обновлена");
   };
 
-  const attrs = Array.isArray(data?.attributes) ? data.attributes : [];
+  // всегда массив атрибутов
+  const attrs = Array.isArray(data?.attributes)
+    ? data.attributes
+    : data?.attributes && typeof data.attributes === "object"
+    ? Object.values(data.attributes)
+    : [];
 
   return (
     <div className="flex h-screen">
@@ -221,20 +289,21 @@ export default function PlatformPassportPage() {
                       </tr>
                     )}
                     {attrs.map((a, idx) => {
-                      const name =
-                        a.display_name || a.name || a.attribute_name || `#${a.attribute_id || a.id || idx}`;
+                      const nameStr = safeText(
+                        a.display_name ?? a.name ?? a.attribute_name ?? `#${a.attribute_id ?? a.id ?? idx}`
+                      );
                       const raw =
                         a.value_text !== undefined && a.value_text !== null
                           ? a.value_text
                           : a.value !== undefined && a.value !== null
                           ? a.value
                           : "";
-                      const value = renderValue(raw);
+                      const valueStr = renderValue(raw);
 
                       return (
-                        <tr key={`${name}-${idx}`} className="border-t">
-                          <td className="py-2 pr-4 text-gray-700">{name}</td>
-                          <td className="py-2 break-words">{value}</td>
+                        <tr key={`${nameStr}-${idx}`} className="border-t">
+                          <td className="py-2 pr-4 text-gray-700">{nameStr}</td>
+                          <td className="py-2 break-words">{valueStr}</td>
                         </tr>
                       );
                     })}
