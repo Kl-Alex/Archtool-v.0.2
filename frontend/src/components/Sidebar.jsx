@@ -1,4 +1,4 @@
-import { LayoutDashboard, Settings, LogOut, BookOpen, AppWindow, Boxes, Share2, Cpu } from "lucide-react";
+import { LayoutDashboard, Settings, LogOut, BookOpen, AppWindow, Boxes, Share2, Cpu, Layers } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { getUserFromToken, removeToken } from "../utils/auth";
 import logo from "/lenta_logo.png";
@@ -16,9 +16,10 @@ const Sidebar = () => {
     { to: "/admin", label: "Админ-панель", icon: Settings },
     { to: "/registry", label: "Бизнес-способности", icon: LayoutDashboard },
     { to: "/applications", label: "Приложения", icon: AppWindow },
+    { to: "/app-capabilities", label: "Способности приложений", icon: Layers },
     { to: "/platforms", label: "Платформы", icon: Boxes },         // <— добавлено
     { to: "/technologies", label: "Технологии", icon: Cpu }, // из lucide-react
-    { to: "/graph", label: "Граф. редактор", icon: Share2 }  // <— добавлено
+    { to: "/graph", label: "Граф. редактор", icon: Share2 },// <— добавлено
   ];
 
   const handleLogout = () => {

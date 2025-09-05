@@ -11,6 +11,8 @@ import TechnologyPassportPage from "./pages/TechnologyPassportPage";
 import PlatformPassportPage from "./pages/PlatformPassportPage";
 import PlatformsRegistryPage from "./pages/PlatformsRegistryPage";
 import TechnologiesRegistryPage from "./pages/TechnologiesRegistryPage";
+import AppCapabilitiesRegistryPage from "./pages/AppCapabilitiesRegistryPage";
+import AppCapabilityPassportPage from "./pages/AppCapabilityPassportPage";
 
 import { NotificationProvider } from "./components/NotificationContext";
 
@@ -49,6 +51,8 @@ function App() {
           <Route path="/technologies" element={<TechnologiesRegistryPage />} />
           <Route path="/technologies/:id" element={<TechnologyPassportPage />} /> {/* если нужна карточка */}
           <Route path="/platforms/:id" element={<PlatformPassportPage />} />
+          <Route path="/app-capabilities" element={<AppCapabilitiesRegistryPage />} />
+          <Route path="/app-capabilities/:id" element={<AppCapabilityPassportPage />} />
 
         </Routes>
 
