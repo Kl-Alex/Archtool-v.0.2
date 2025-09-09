@@ -101,7 +101,7 @@ func GetPlatformByID(c *gin.Context) {
 		return
 	}
 
-	result := map[string]interface{}{
+	resp := map[string]interface{}{
 		"id":         id,
 		"attributes": []map[string]interface{}{},
 	}
@@ -114,9 +114,9 @@ func GetPlatformByID(c *gin.Context) {
 			"value_text":   r.Value,
 		})
 	}
-	result["attributes"] = attrList
+	resp["attributes"] = attrList
 
-	c.JSON(http.StatusOK, result)
+	c.JSON(http.StatusOK, resp)
 }
 
 // POST /api/platforms
@@ -128,21 +128,18 @@ func CreatePlatform(c *gin.Context) {
 	}
 	defer dbConn.Close()
 
-	// Единый контракт: { object_type_id, attributes: [{attribute_id, value}] }
 	var input models.CreateBusinessCapabilityInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input", "details": err.Error()})
 		return
 	}
 
-	// Жёстко берём object_type_id для "Платформа" (не доверяем фронту)
 	var platformTypeID int
 	if err := dbConn.Get(&platformTypeID, `SELECT id FROM object_types WHERE name = 'Платформа'`); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Object type not found"})
 		return
 	}
 
-	// gen object_id
 	var objectID string
 	if err := dbConn.Get(&objectID, `SELECT gen_random_uuid()`); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate ID"})
@@ -167,7 +164,7 @@ func CreatePlatform(c *gin.Context) {
 			return
 		}
 
-		// Валидация по типам
+		// Валидация
 		switch attrType {
 		case "number":
 			if _, err := strconv.ParseFloat(attr.Value, 64); err != nil {
@@ -178,7 +175,7 @@ func CreatePlatform(c *gin.Context) {
 		case "boolean":
 			if attr.Value != "true" && attr.Value != "false" {
 				tx.Rollback()
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Атрибут должен быть true или false", "attr_id": attr.AttributeID})
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Атрибут должен быть true/false", "attr_id": attr.AttributeID})
 				return
 			}
 		case "date":
@@ -228,15 +225,8 @@ func CreatePlatform(c *gin.Context) {
 					return
 				}
 			}
-		case "string":
-			// допустимо
-		default:
-			tx.Rollback()
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Неизвестный тип атрибута", "attr_id": attr.AttributeID})
-			return
 		}
 
-		// insert
 		if _, err := tx.Exec(`
 			INSERT INTO attribute_values (object_type_id, object_id, attribute_id, value_text)
 			VALUES ($1, $2, $3, $4)
@@ -266,7 +256,6 @@ func UpdatePlatform(c *gin.Context) {
 
 	objectID := c.Param("id")
 
-	// Единый контракт с POST: { attributes: [{attribute_id, value}] }
 	var input map[string]interface{}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
@@ -279,7 +268,6 @@ func UpdatePlatform(c *gin.Context) {
 		return
 	}
 
-	// Разбираем массив attributes
 	type pair struct {
 		ID    int
 		Value string
@@ -289,18 +277,18 @@ func UpdatePlatform(c *gin.Context) {
 	if rawArr, ok := input["attributes"].([]interface{}); ok {
 		for _, raw := range rawArr {
 			if m, ok := raw.(map[string]interface{}); ok {
-				attrIDAny, hasID := m["attribute_id"]
-				valAny, hasVal := m["value"]
+				aID, hasID := m["attribute_id"]
+				val, hasVal := m["value"]
 				if !hasID {
 					continue
 				}
-				id := intFromAny(attrIDAny)
-				val := ""
-				if hasVal && valAny != nil {
-					val = toString(valAny)
+				id := intFromAny(aID)
+				v := ""
+				if hasVal && val != nil {
+					v = toString(val)
 				}
 				if id > 0 {
-					pairs = append(pairs, pair{ID: id, Value: val})
+					pairs = append(pairs, pair{ID: id, Value: v})
 				}
 			}
 		}
@@ -314,7 +302,6 @@ func UpdatePlatform(c *gin.Context) {
 	tx := dbConn.MustBegin()
 
 	for _, p := range pairs {
-		// метаданные атрибута
 		var attrType string
 		var isMultiple bool
 		var options []string
@@ -330,7 +317,6 @@ func UpdatePlatform(c *gin.Context) {
 			return
 		}
 
-		// валидация
 		switch attrType {
 		case "number":
 			if _, err := strconv.ParseFloat(p.Value, 64); err != nil {
@@ -341,7 +327,7 @@ func UpdatePlatform(c *gin.Context) {
 		case "boolean":
 			if p.Value != "true" && p.Value != "false" {
 				tx.Rollback()
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Атрибут должен быть true или false", "attr_id": p.ID})
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Атрибут должен быть true/false", "attr_id": p.ID})
 				return
 			}
 		case "date":
@@ -391,15 +377,8 @@ func UpdatePlatform(c *gin.Context) {
 					return
 				}
 			}
-		case "string":
-			// ок
-		default:
-			tx.Rollback()
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Неизвестный тип атрибута", "attr_id": p.ID})
-			return
 		}
 
-		// upsert
 		if _, err := tx.Exec(`
 			INSERT INTO attribute_values (object_type_id, object_id, attribute_id, value_text)
 			VALUES ($1, $2, $3, $4)
@@ -437,8 +416,3 @@ func DeletePlatform(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Deleted"})
 }
-
-// -----------------
-// helpers
-// -----------------
-

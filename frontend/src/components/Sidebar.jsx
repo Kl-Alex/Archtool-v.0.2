@@ -1,8 +1,30 @@
-import { LayoutDashboard, Settings, LogOut, BookOpen, AppWindow, Boxes, Share2, Cpu, Layers } from "lucide-react";
+import {
+  LayoutDashboard,
+  Settings,
+  LogOut,
+  AppWindow,
+  Boxes,
+  Share2,
+  Cpu,
+  Layers,
+  Rocket,
+  ChevronRight,
+  ChevronDown,
+} from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { getUserFromToken, removeToken } from "../utils/auth";
 import logo from "/lenta_logo.png";
 import classNames from "classnames";
+import { useEffect, useMemo, useState } from "react";
+
+const REGISTRY_ROUTES = [
+  "/registry",
+  "/applications",
+  "/app-capabilities",
+  "/platforms",
+  "/technologies",
+  "/initiatives",
+];
 
 const Sidebar = () => {
   const location = useLocation();
@@ -12,15 +34,28 @@ const Sidebar = () => {
   const isActive = (to) =>
     location.pathname === to || location.pathname.startsWith(to + "/");
 
-  const navItems = [
-    { to: "/admin", label: "Админ-панель", icon: Settings },
-    { to: "/registry", label: "Бизнес-способности", icon: LayoutDashboard },
-    { to: "/applications", label: "Приложения", icon: AppWindow },
-    { to: "/app-capabilities", label: "Способности приложений", icon: Layers },
-    { to: "/platforms", label: "Платформы", icon: Boxes },         // <— добавлено
-    { to: "/technologies", label: "Технологии", icon: Cpu }, // из lucide-react
-    { to: "/graph", label: "Граф. редактор", icon: Share2 },// <— добавлено
-  ];
+  // --- раскрывашка «Реестры» ---
+  const routeIsRegistry = useMemo(
+    () => REGISTRY_ROUTES.some((r) => isActive(r)),
+    [location.pathname]
+  );
+
+  const [registriesOpen, setRegistriesOpen] = useState(() => {
+    // пробуем восстановить из localStorage
+    const saved = localStorage.getItem("registriesOpen");
+    if (saved === "true" || saved === "false") return saved === "true";
+    // иначе открываем, если находимся внутри одного из реестров
+    return routeIsRegistry;
+  });
+
+  useEffect(() => {
+    localStorage.setItem("registriesOpen", String(registriesOpen));
+  }, [registriesOpen]);
+
+  useEffect(() => {
+    // если зашли на маршрут реестра — раскрыть
+    if (routeIsRegistry && !registriesOpen) setRegistriesOpen(true);
+  }, [routeIsRegistry]); // eslint-disable-line
 
   const handleLogout = () => {
     removeToken();
@@ -37,20 +72,71 @@ const Sidebar = () => {
 
         <nav>
           <ul className="space-y-2">
-            {navItems.map(({ to, label, icon: Icon }) => (
-              <li key={to}>
-                <Link
-                  to={to}
-                  className={classNames(
-                    "flex items-center gap-3 p-2 rounded-lg transition-colors hover:bg-lentaBlue/10 text-gray-700",
-                    { "bg-lentaBlue/10 text-lentaBlue font-semibold": isActive(to) }
+            {/* Админ-панель */}
+            <NavItem to="/admin" label="Админ-панель" icon={Settings} active={isActive("/admin")} />
+
+            {/* Группа: Реестры */}
+            <li>
+              <button
+                type="button"
+                onClick={() => setRegistriesOpen((p) => !p)}
+                className={classNames(
+                  "w-full flex items-center gap-3 p-2 rounded-lg transition-colors hover:bg-lentaBlue/10 text-gray-700",
+                  { "bg-lentaBlue/10 text-lentaBlue font-semibold": routeIsRegistry }
+                )}
+                aria-expanded={registriesOpen}
+                aria-controls="registries-group"
+              >
+                <span className="flex items-center justify-center">
+                  {registriesOpen ? (
+                    <ChevronDown className="w-5 h-5" />
+                  ) : (
+                    <ChevronRight className="w-5 h-5" />
                   )}
-                >
-                  <Icon className="w-5 h-5" />
-                  <span className="hidden sm:inline">{label}</span>
-                </Link>
-              </li>
-            ))}
+                </span>
+                <span className="hidden sm:inline">Реестры</span>
+              </button>
+
+              {/* Вложенные пункты */}
+              {registriesOpen && (
+                <ul id="registries-group" className="mt-2 ml-6 space-y-1">
+                  <NavItem
+                    to="/registry"
+                    label="Бизнес-способности"
+                    icon={LayoutDashboard}
+                    active={isActive("/registry")}
+                  />
+                  <NavItem
+                    to="/applications"
+                    label="Приложения"
+                    icon={AppWindow}
+                    active={isActive("/applications")}
+                  />
+                  <NavItem
+                    to="/app-capabilities"
+                    label="Способности приложений"
+                    icon={Layers}
+                    active={isActive("/app-capabilities")}
+                  />
+                  <NavItem
+                    to="/platforms"
+                    label="Платформы"
+                    icon={Boxes}
+                    active={isActive("/platforms")}
+                  />
+                  <NavItem
+                    to="/technologies"
+                    label="Технологии"
+                    icon={Cpu}
+                    active={isActive("/technologies")}
+                  />
+                  <NavItem to="/initiatives" label="Инициативы" icon={Rocket} active={isActive("/initiatives")} />
+                </ul>
+              )}
+            </li>
+
+            {/* Графический редактор */}
+            <NavItem to="/graph" label="Граф. редактор" icon={Share2} active={isActive("/graph")} />
           </ul>
         </nav>
       </div>
@@ -75,3 +161,21 @@ const Sidebar = () => {
 };
 
 export default Sidebar;
+
+// --- маленький помощник для ссылок ---
+function NavItem({ to, label, icon: Icon, active }) {
+  return (
+    <li>
+      <Link
+        to={to}
+        className={classNames(
+          "flex items-center gap-3 p-2 rounded-lg transition-colors hover:bg-lentaBlue/10 text-gray-700",
+          { "bg-lentaBlue/10 text-lentaBlue font-semibold": active }
+        )}
+      >
+        <Icon className="w-5 h-5" />
+        <span className="hidden sm:inline">{label}</span>
+      </Link>
+    </li>
+  );
+}

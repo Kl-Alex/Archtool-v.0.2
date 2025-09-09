@@ -13,6 +13,8 @@ import PlatformsRegistryPage from "./pages/PlatformsRegistryPage";
 import TechnologiesRegistryPage from "./pages/TechnologiesRegistryPage";
 import AppCapabilitiesRegistryPage from "./pages/AppCapabilitiesRegistryPage";
 import AppCapabilityPassportPage from "./pages/AppCapabilityPassportPage";
+import InitiativesRegistryPage from "./pages/InitiativesRegistryPage";
+import InitiativePassportPage from "./pages/InitiativePassportPage";
 
 import { NotificationProvider } from "./components/NotificationContext";
 
@@ -53,6 +55,9 @@ function App() {
           <Route path="/platforms/:id" element={<PlatformPassportPage />} />
           <Route path="/app-capabilities" element={<AppCapabilitiesRegistryPage />} />
           <Route path="/app-capabilities/:id" element={<AppCapabilityPassportPage />} />
+          <Route path="/initiatives" element={<InitiativePassportPage />} />
+          <Route path="/initiatives/:id" element={<InitiativePassportPage />} />
+
 
         </Routes>
 
