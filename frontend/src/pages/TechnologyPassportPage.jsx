@@ -97,23 +97,24 @@ export default function TechnologyPassportPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const editFormRef = useRef();
 
-  const fetchItem = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/technologies/${id}`, {
-        headers: { Authorization: `Bearer ${getToken()}` },
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Не удалось загрузить технологию");
-      const json = await res.json();
-      const normalized = normalizeTechnology(json);
-      setData(normalized);
-    } catch (e) {
-      notifyError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+const fetchItem = async () => {
+  setLoading(true);
+  try {
+    const res = await fetch(`/api/technologies/${id}`, {
+      headers: { Authorization: `Bearer ${getToken()}` },
+      credentials: "include",
+    });
+    if (!res.ok) throw new Error("Не удалось загрузить технологию");
+    const json = await res.json();
+    setData(json);   // 👈 без normalizeTechnology
+  } catch (e) {
+    notifyError(e.message);
+  } finally {
+    setLoading(false);
+  }
+};
+
+
 
   useEffect(() => {
     fetchItem();
@@ -136,6 +137,8 @@ export default function TechnologyPassportPage() {
     }
   };
 
+
+
   const handleUpdated = async () => {
     setShowEditModal(false);
     await fetchItem();
@@ -143,6 +146,26 @@ export default function TechnologyPassportPage() {
   };
 
   const attrs = Array.isArray(data?.attributes) ? data.attributes : [];
+  
+  const name = getAttr(attrs, "name");
+  const description = getAttr(attrs, "description");
+  const owner = getAttr(attrs, "owner");
+  const itDomain = getAttr(attrs, "it_domain");
+
+
+  function getAttr(attrs, name) {
+  return attrs.find(a => a.name === name)?.value_text || "";
+}
+
+{attrs.map((a, idx) => (
+  <tr key={a.attribute_id || idx} className="border-t">
+    <td className="py-2 pr-4 text-gray-700">
+      {a.display_name || a.name || `#${a.attribute_id}`}
+    </td>
+    <td className="py-2 break-words">{renderValue(a.value_text)}</td>
+  </tr>
+))}
+
 
   return (
     <div className="flex h-screen">
@@ -182,33 +205,35 @@ export default function TechnologyPassportPage() {
         ) : (
           <>
             {/* Шапка */}
-            <section className="bg-white border rounded-xl shadow p-5 mb-6">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h1 className="text-2xl font-bold text-lentaBlue">
-                    {data.name || "Без названия"}
-                  </h1>
-                  {data.description && (
-                    <p className="text-gray-600 mt-1">{data.description}</p>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {data.owner && (
-                    <span className="px-3 py-1 rounded-full text-xs bg-blue-50 text-blue-700 border border-blue-200">
-                      Владелец: {data.owner}
-                    </span>
-                  )}
-                  {data.it_domain && (
-                    <span className="px-3 py-1 rounded-full text-xs bg-yellow-50 text-yellow-700 border border-yellow-200">
-                      Домен: {data.it_domain}
-                    </span>
-                  )}
-                  <span className="px-3 py-1 rounded-full text-xs bg-gray-50 text-gray-600 border">
-                    ID: {data.id}
-                  </span>
-                </div>
-              </div>
-            </section>
+            
+<section className="bg-white border rounded-xl shadow p-5 mb-6">
+  <div className="flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <h1 className="text-2xl font-bold text-lentaBlue">
+        {name || "Без названия"}
+      </h1>
+      {description && (
+        <p className="text-gray-600 mt-1">{description}</p>
+      )}
+    </div>
+    <div className="flex flex-wrap gap-2">
+      {owner && (
+        <span className="px-3 py-1 rounded-full text-xs bg-blue-50 text-blue-700 border border-blue-200">
+          Владелец: {owner}
+        </span>
+      )}
+      {itDomain && (
+        <span className="px-3 py-1 rounded-full text-xs bg-yellow-50 text-yellow-700 border border-yellow-200">
+          Домен: {itDomain}
+        </span>
+      )}
+      <span className="px-3 py-1 rounded-full text-xs bg-gray-50 text-gray-600 border">
+        ID: {data.id}
+      </span>
+    </div>
+  </div>
+</section>
+
 
             {/* Атрибуты */}
             <section className="bg-white border rounded-xl shadow p-5">

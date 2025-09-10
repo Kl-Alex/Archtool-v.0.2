@@ -66,56 +66,57 @@ func GetTechnologies(c *gin.Context) {
 }
 
 // GET /api/technologies/:id
+// GET /api/technologies/:id
 func GetTechnologyByID(c *gin.Context) {
-	dbConn, err := db.Connect()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "DB error"})
-		return
-	}
-	defer dbConn.Close()
+    dbConn, err := db.Connect()
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "DB error"})
+        return
+    }
+    defer dbConn.Close()
 
-	id := c.Param("id")
+    id := c.Param("id")
 
-	var objectTypeID int
-	if err := dbConn.Get(&objectTypeID, `SELECT id FROM object_types WHERE name = 'Технология'`); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Object type not found"})
-		return
-	}
+    var objectTypeID int
+    if err := dbConn.Get(&objectTypeID, `SELECT id FROM object_types WHERE name = 'Технология'`); err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Object type not found"})
+        return
+    }
 
-	type AttrRow struct {
-		AttrID      int    `db:"id"`
-		AttrName    string `db:"name"`
-		DisplayName string `db:"display_name"`
-		Value       string `db:"value_text"`
-	}
+    type AttrRow struct {
+        AttrID      int    `db:"id"`
+        AttrName    string `db:"name"`
+        DisplayName string `db:"display_name"`
+        Value       string `db:"value_text"`
+    }
 
-	var rows []AttrRow
-	if err := dbConn.Select(&rows, `
-		SELECT a.id, a.name, a.display_name, av.value_text
-		FROM attribute_values av
-		JOIN attributes a ON av.attribute_id = a.id
-		WHERE av.object_type_id = $1 AND av.object_id = $2
-	`, objectTypeID, id); err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Object not found"})
-		return
-	}
+    var rows []AttrRow
+    if err := dbConn.Select(&rows, `
+        SELECT a.id, a.name, a.display_name, av.value_text
+        FROM attribute_values av
+        JOIN attributes a ON av.attribute_id = a.id
+        WHERE av.object_type_id = $1 AND av.object_id = $2
+    `, objectTypeID, id); err != nil {
+        c.JSON(http.StatusNotFound, gin.H{"error": "Object not found"})
+        return
+    }
 
-	resp := map[string]interface{}{
-		"id":         id,
-		"attributes": []map[string]interface{}{},
-	}
-	attrList := make([]map[string]interface{}, 0, len(rows))
-	for _, r := range rows {
-		attrList = append(attrList, map[string]interface{}{
-			"attribute_id": r.AttrID,
-			"name":         r.AttrName,
-			"display_name": r.DisplayName,
-			"value_text":   r.Value,
-		})
-	}
-	resp["attributes"] = attrList
+    resp := map[string]interface{}{
+        "id":         id,
+        "attributes": []map[string]interface{}{},
+    }
+    attrList := make([]map[string]interface{}, 0, len(rows))
+    for _, r := range rows {
+        attrList = append(attrList, map[string]interface{}{
+            "attribute_id": r.AttrID,
+            "name":         r.AttrName,
+            "display_name": r.DisplayName,
+            "value_text":   r.Value,
+        })
+    }
+    resp["attributes"] = attrList
 
-	c.JSON(http.StatusOK, resp)
+    c.JSON(http.StatusOK, resp)
 }
 
 // POST /api/technologies

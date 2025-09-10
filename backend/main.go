@@ -133,6 +133,9 @@ authRoutes.POST("/platforms", handlers.CreatePlatform)
 authRoutes.PUT("/platforms/:id", handlers.UpdatePlatform)
 authRoutes.DELETE("/platforms/:id", handlers.DeletePlatform)
 
+authRoutes.PUT("/api/objects/:type/:id", handlers.UpdateObject)
+
+
 
 
 

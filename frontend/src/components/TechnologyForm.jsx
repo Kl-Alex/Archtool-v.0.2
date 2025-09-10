@@ -77,156 +77,182 @@ const TechnologyForm = forwardRef(({ onCreated, existingData }, ref) => {
     setErrors((prev) => ({ ...prev, [attrId]: false }));
   };
 
-const getOptionsByAttr = (attr) => {
-  if (Array.isArray(attr.options)) {
-    return attr.options.map(o => typeof o === "string" ? o : (o?.value ?? String(o)));
-  }
-  if (typeof attr.options === "string") {
-    try { 
-      const p = JSON.parse(attr.options);
-      return Array.isArray(p) ? p.map(o => typeof o === "string" ? o : (o?.value ?? String(o))) : [];
-    } catch { return []; }
-  }
-  return [];
-};
-
-const handleSubmit = async () => {
-  // базовая валидация обязательных
-  const errs = {};
-  attributes.forEach(a => {
-    const v = attributeValues[a.id];
-    const empty = v == null || v === "" || (a.is_multiple && Array.isArray(v) && v.length === 0);
-    if (a.is_required && empty) errs[a.id] = "Обязательное поле";
-  });
-  if (Object.keys(errs).length) {
-    setErrors(errs);
-    notifyError?.("Заполните обязательные поля");
-    return false;
-  }
-
-  let url, method, body;
-
-  if (existingData?.id) {
-    // === PUT: { "<attr_name>": "<string>" }
-    const byName = {};
-    let hasInvalid = false;
-
-    for (const a of attributes) {
-      const raw = attributeValues[a.id];
-      const isEmpty = raw == null || raw === "" || (a.is_multiple && Array.isArray(raw) && raw.length === 0);
-      if (!a.is_required && isEmpty) continue;
-
-      // проверка options для select
-      if (a.type === "select") {
-        const opts = getOptionsByAttr(a);
-        if (a.is_multiple) {
-          const arr = Array.isArray(raw) ? raw : (raw ? [String(raw)] : []);
-          const invalid = arr.filter(x => !opts.includes(x));
-          if (invalid.length) {
-            errs[a.id] = `Недопустимые значения: ${invalid.join(", ")}`;
-            hasInvalid = true;
-            continue;
-          }
-          byName[a.name] = JSON.stringify(arr);
-        } else {
-          if (raw !== "" && !getOptionsByAttr(a).includes(raw)) {
-            errs[a.id] = `Недопустимое значение: ${String(raw)}`;
-            hasInvalid = true;
-            continue;
-          }
-          byName[a.name] = String(raw ?? "");
-        }
-      } else if (a.type === "boolean") {
-        byName[a.name] = (raw === true || raw === "true") ? "true" : "false";
-      } else {
-        byName[a.name] = String(raw ?? "");
+  const getOptionsByAttr = (attr) => {
+    if (Array.isArray(attr.options)) {
+      return attr.options.map((o) => (typeof o === "string" ? o : o?.value ?? String(o)));
+    }
+    if (typeof attr.options === "string") {
+      try {
+        const p = JSON.parse(attr.options);
+        return Array.isArray(p) ? p.map((o) => (typeof o === "string" ? o : o?.value ?? String(o))) : [];
+      } catch {
+        return [];
       }
     }
+    return [];
+  };
 
-    if (hasInvalid) {
-      setErrors(prev => ({ ...prev, ...errs }));
-      notifyError?.("Исправьте значения выделенных полей");
+  const handleSubmit = async () => {
+    // базовая валидация обязательных
+    const errs = {};
+    attributes.forEach((a) => {
+      const v = attributeValues[a.id];
+      const empty = v == null || v === "" || (a.is_multiple && Array.isArray(v) && v.length === 0);
+      if (a.is_required && empty) errs[a.id] = "Обязательное поле";
+    });
+    if (Object.keys(errs).length) {
+      setErrors(errs);
+      notifyError?.("Заполните обязательные поля");
       return false;
     }
 
-    url = `/api/technologies/${existingData.id}`;
-    method = "PUT";
-    body = JSON.stringify(byName);
-  } else {
-    // === POST: { object_type_id, attributes: [{attribute_id, value}] }
-    const attrsPayload = [];
-    let hasInvalid = false;
+    let url, method, body;
 
-    for (const a of attributes) {
-      const raw = attributeValues[a.id];
-      const isEmpty = raw == null || raw === "" || (a.is_multiple && Array.isArray(raw) && raw.length === 0);
-      if (isEmpty) continue;
+    if (existingData?.id) {
+      // === PUT: новый формат { attributes: [{ attribute_id, value }] }
+      const attrsPayload = [];
+      let hasInvalid = false;
 
-      if (a.type === "select") {
-        const opts = getOptionsByAttr(a);
-        if (a.is_multiple) {
-          const arr = Array.isArray(raw) ? raw : [String(raw)];
-          const invalid = arr.filter(x => !opts.includes(x));
-          if (invalid.length) {
-            errs[a.id] = `Недопустимые значения: ${invalid.join(", ")}`;
-            hasInvalid = true;
-            continue;
+      for (const a of attributes) {
+        const raw = attributeValues[a.id];
+        const isEmpty =
+          raw == null || raw === "" || (a.is_multiple && Array.isArray(raw) && raw.length === 0);
+
+        // необязательные пустые — пропускаем
+        if (!a.is_required && isEmpty) continue;
+
+        if (a.type === "select") {
+          const opts = getOptionsByAttr(a);
+
+          if (a.is_multiple) {
+            const arr = Array.isArray(raw) ? raw : (raw ? [String(raw)] : []);
+            const invalid = arr.filter((x) => !opts.includes(x));
+            if (invalid.length) {
+              errs[a.id] = `Недопустимые значения: ${invalid.join(", ")}`;
+              hasInvalid = true;
+              continue;
+            }
+            attrsPayload.push({
+              attribute_id: a.id,
+              value: JSON.stringify(arr),
+            });
+          } else {
+            if (raw !== "" && !opts.includes(raw)) {
+              errs[a.id] = `Недопустимое значение: ${String(raw)}`;
+              hasInvalid = true;
+              continue;
+            }
+            attrsPayload.push({
+              attribute_id: a.id,
+              value: String(raw ?? ""),
+            });
           }
-          attrsPayload.push({ attribute_id: a.id, value: JSON.stringify(arr) });
+        } else if (a.type === "boolean") {
+          attrsPayload.push({
+            attribute_id: a.id,
+            value: raw === true || raw === "true" ? "true" : "false",
+          });
         } else {
-          if (!opts.includes(raw)) {
-            errs[a.id] = `Недопустимое значение: ${String(raw)}`;
-            hasInvalid = true;
-            continue;
+          attrsPayload.push({
+            attribute_id: a.id,
+            value: String(raw ?? ""),
+          });
+        }
+      }
+
+      if (hasInvalid) {
+        setErrors((prev) => ({ ...prev, ...errs }));
+        notifyError?.("Исправьте значения выделенных полей");
+        return false;
+      }
+
+      url = `/api/technologies/${existingData.id}`;
+      method = "PUT";
+      body = JSON.stringify({ attributes: attrsPayload });
+    } else {
+      // === POST: старый формат { object_type_id, attributes: [{attribute_id, value}] }
+      const attrsPayload = [];
+      let hasInvalid = false;
+
+      for (const a of attributes) {
+        const raw = attributeValues[a.id];
+        const isEmpty =
+          raw == null || raw === "" || (a.is_multiple && Array.isArray(raw) && raw.length === 0);
+        if (isEmpty) continue;
+
+        if (a.type === "select") {
+          const opts = getOptionsByAttr(a);
+          if (a.is_multiple) {
+            const arr = Array.isArray(raw) ? raw : [String(raw)];
+            const invalid = arr.filter((x) => !opts.includes(x));
+            if (invalid.length) {
+              errs[a.id] = `Недопустимые значения: ${invalid.join(", ")}`;
+              hasInvalid = true;
+              continue;
+            }
+            attrsPayload.push({ attribute_id: a.id, value: JSON.stringify(arr) });
+          } else {
+            if (!opts.includes(raw)) {
+              errs[a.id] = `Недопустимое значение: ${String(raw)}`;
+              hasInvalid = true;
+              continue;
+            }
+            attrsPayload.push({ attribute_id: a.id, value: String(raw) });
           }
+        } else if (a.type === "boolean") {
+          attrsPayload.push({
+            attribute_id: a.id,
+            value: raw === true || raw === "true" ? "true" : "false",
+          });
+        } else {
           attrsPayload.push({ attribute_id: a.id, value: String(raw) });
         }
-      } else if (a.type === "boolean") {
-        attrsPayload.push({ attribute_id: a.id, value: (raw === true || raw === "true") ? "true" : "false" });
-      } else {
-        attrsPayload.push({ attribute_id: a.id, value: String(raw) });
       }
+
+      if (hasInvalid) {
+        setErrors((prev) => ({ ...prev, ...errs }));
+        notifyError?.("Исправьте значения выделенных полей");
+        return false;
+      }
+
+      url = "/api/technologies";
+      method = "POST";
+      body = JSON.stringify({ object_type_id: objectTypeId, attributes: attrsPayload });
     }
 
-    if (hasInvalid) {
-      setErrors(prev => ({ ...prev, ...errs }));
-      notifyError?.("Исправьте значения выделенных полей");
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getToken()}`,
+        },
+        credentials: "include",
+        body,
+      });
+
+      const raw = await res.text(); // читаем сырой текст всегда
+      let parsed = null;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        /* ignore */
+      }
+
+      if (res.ok) {
+        onCreated?.(parsed?.id || existingData?.id);
+        return true;
+      } else {
+        console.error("Technology save failed", { status: res.status, body: raw });
+        notifyError?.(parsed?.error || parsed?.message || raw || `HTTP ${res.status}`);
+        return false;
+      }
+    } catch (err) {
+      console.error("Сетевая ошибка при сохранении", err);
+      notifyError?.("Сетевая ошибка при сохранении");
       return false;
     }
-
-    url = "/api/technologies";
-    method = "POST";
-    body = JSON.stringify({ object_type_id: objectTypeId, attributes: attrsPayload });
-  }
-  try {
-    const res = await fetch(url, {
-      method,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${getToken()}`,
-      },
-      credentials: "include",
-      body,
-    });
-
-    const raw = await res.text();          // читаем сырой текст всегда
-    let parsed = null;
-    try { parsed = JSON.parse(raw); } catch { /* ignore */ }
-
-    if (res.ok) {
-      onCreated?.(parsed?.id || existingData?.id);
-      return true;
-    } else {
-      console.error("Technology save failed", { status: res.status, body: raw });
-      notifyError?.(parsed?.error || parsed?.message || raw || `HTTP ${res.status}`);
-      return false;
-    }
-  } catch (err) {
-    console.error("Сетевая ошибка при сохранении", err);
-    notifyError?.("Сетевая ошибка при сохранении");
-    return false;
-  }
-};
+  };
 
   useImperativeHandle(ref, () => ({
     submit: handleSubmit,
