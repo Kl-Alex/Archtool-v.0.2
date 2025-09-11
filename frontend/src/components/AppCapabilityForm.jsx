@@ -103,7 +103,15 @@ const AppCapabilityForm = forwardRef(({ onCreated, existingData, notifyError }, 
     // валидация обязательных
     const newErrors = {};
     attributes.forEach((attr) => {
-      if (attr.is_required && (attributeValues[attr.id] === undefined || attributeValues[attr.id] === null || attributeValues[attr.id] === "" || (attr.is_multiple && Array.isArray(attributeValues[attr.id]) && attributeValues[attr.id].length === 0))) {
+      if (
+        attr.is_required &&
+        (
+          attributeValues[attr.id] === undefined ||
+          attributeValues[attr.id] === null ||
+          attributeValues[attr.id] === "" ||
+          (attr.is_multiple && Array.isArray(attributeValues[attr.id]) && attributeValues[attr.id].length === 0)
+        )
+      ) {
         newErrors[attr.id] = true;
       }
     });
@@ -113,23 +121,35 @@ const AppCapabilityForm = forwardRef(({ onCreated, existingData, notifyError }, 
       return false;
     }
 
-    const payload = {
-      object_type_id: objectTypeId,
-      parent_id: parentInfo.parent_id || null,
-      level: parentInfo.level,
-      attributes: Object.entries(attributeValues).map(([attrId, value]) => {
-        const attr = attributes.find((a) => a.id === Number(attrId));
-        return {
-          attribute_id: Number(attrId),
-          value: attr?.is_multiple ? JSON.stringify(value ?? []) : (value ?? ""),
-        };
-      }),
-    };
+    // Собираем массив атрибутов один раз
+    const attrsPayload = Object.entries(attributeValues).map(([attrId, value]) => {
+      const attr = attributes.find((a) => a.id === Number(attrId));
+      return {
+        attribute_id: Number(attrId),
+        value: attr?.is_multiple ? JSON.stringify(value ?? []) : (value ?? ""),
+      };
+    });
 
+    // === разные payload/URL для POST и PUT
     const url = existingData
       ? `/api/app_capabilities/${existingData.id}`
       : `/api/app_capabilities`;
     const method = existingData ? "PUT" : "POST";
+
+    const payload = existingData
+      // ✅ НОВЫЙ ФОРМАТ ДЛЯ UPDATE — только attributes (+ parent_id/level, если бэк поддерживает)
+      ? {
+          attributes: attrsPayload,
+          parent_id: parentInfo.parent_id ?? null,
+          level: parentInfo.level,
+        }
+      // 🟢 СТАРЫЙ ФОРМАТ ДЛЯ CREATE — ничего не меняем
+      : {
+          object_type_id: objectTypeId,
+          parent_id: parentInfo.parent_id ?? null,
+          level: parentInfo.level,
+          attributes: attrsPayload,
+        };
 
     const res = await fetch(url, {
       method,
@@ -142,7 +162,13 @@ const AppCapabilityForm = forwardRef(({ onCreated, existingData, notifyError }, 
       onCreated?.(result.id || existingData?.id);
       return true;
     } else {
-      notifyError?.("Ошибка при сохранении");
+      // попробуем прочитать ошибку
+      let msg = "Ошибка при сохранении";
+      try {
+        const j = await res.json();
+        msg = j?.error || j?.message || msg;
+      } catch {/* ignore */}
+      notifyError?.(msg);
       return false;
     }
   };

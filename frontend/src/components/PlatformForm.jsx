@@ -36,8 +36,7 @@ const PlatformForm = forwardRef(({ onCreated, existingData, notifyError }, ref) 
             const found = existingData.attributes.find((a) => a.attribute_id === attr.id);
             if (!found) continue;
 
-            const raw =
-              found.value_text ?? found.value ?? "";
+            const raw = found.value_text ?? found.value ?? "";
 
             if (attr.type === "select" && attr.is_multiple) {
               try {
@@ -101,21 +100,21 @@ const PlatformForm = forwardRef(({ onCreated, existingData, notifyError }, ref) 
       return false;
     }
 
-    // Формируем payload: такой же контракт, как у БС
-    const payload = {
-      object_type_id: objectTypeId,
-      attributes: Object.entries(attributeValues).map(([attrId, value]) => {
-        const meta = attributes.find((a) => a.id === Number(attrId));
-        const out =
-          meta?.type === "select" && meta.is_multiple
-            ? JSON.stringify(value ?? [])
-            : value;
-        return { attribute_id: Number(attrId), value: out };
-      }),
-    };
+    // Готовим массив атрибутов один раз
+    const attrsPayload = Object.entries(attributeValues).map(([attrId, value]) => {
+      const meta = attributes.find((a) => a.id === Number(attrId));
+      const out = meta?.type === "select" && meta.is_multiple
+        ? JSON.stringify(value ?? [])
+        : value;
+      return { attribute_id: Number(attrId), value: out };
+    });
 
+    // POST — старый контракт; PUT — только attributes
     const url = existingData ? `/api/platforms/${existingData.id}` : `/api/platforms`;
     const method = existingData ? "PUT" : "POST";
+    const payload = existingData
+      ? { attributes: attrsPayload } // 🔁 новый формат для update
+      : { object_type_id: objectTypeId, attributes: attrsPayload }; // ✅ старый формат для create
 
     try {
       const res = await fetch(url, {

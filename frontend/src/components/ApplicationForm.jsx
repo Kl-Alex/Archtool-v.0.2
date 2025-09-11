@@ -52,11 +52,9 @@ const ApplicationForm = forwardRef(({ onCreated, existingData }, ref) => {
                 : "";
 
             if (attr.type === "select" && attr.is_multiple) {
-              try {
-                valuesMap[attr.id] = Array.isArray(raw) ? raw : JSON.parse(raw);
-              } catch {
-                valuesMap[attr.id] = Array.isArray(raw) ? raw : raw ? [String(raw)] : [];
-              }
+              valuesMap[attr.id] = normalizeToArray(raw);
+            } else if (attr.type === "boolean") {
+              valuesMap[attr.id] = raw === true || raw === "true" ? true : raw === "" ? "" : false;
             } else {
               valuesMap[attr.id] = raw;
             }
@@ -108,20 +106,29 @@ const ApplicationForm = forwardRef(({ onCreated, existingData }, ref) => {
       return false;
     }
 
-    const payload = {
-      object_type_id: objectTypeId,
-      attributes: Object.entries(attributeValues).map(([attrId, value]) => {
-        const meta = attributes.find((a) => a.id === Number(attrId));
-        const out =
-          meta?.type === "select" && meta.is_multiple
-            ? JSON.stringify(value ?? [])
-            : value;
-        return { attribute_id: Number(attrId), value: out };
-      }),
-    };
+    // общий список атрибутов
+    const attrsPayload = Object.entries(attributeValues).map(([attrId, value]) => {
+      const meta = attributes.find((a) => a.id === Number(attrId));
+      let out = value;
 
+      if (meta?.type === "select" && meta.is_multiple) {
+        out = JSON.stringify(value ?? []);
+      } else if (meta?.type === "boolean") {
+        out = value === true || value === "true" ? "true" : value === "" ? "" : "false";
+      } else {
+        out = value ?? "";
+      }
+
+      return { attribute_id: Number(attrId), value: out };
+    });
+
+    // разные payload/URL для POST и PUT
     const url = existingData ? `/api/applications/${existingData.id}` : `/api/applications`;
     const method = existingData ? "PUT" : "POST";
+
+    const payload = existingData
+      ? { attributes: attrsPayload } // новый формат для UPDATE
+      : { object_type_id: objectTypeId, attributes: attrsPayload }; // старый для CREATE
 
     try {
       const res = await fetch(url, {
@@ -164,17 +171,20 @@ const ApplicationForm = forwardRef(({ onCreated, existingData }, ref) => {
       {attributes.map((attr) => (
         <div key={attr.id} className="flex flex-col">
           <label className="text-sm font-medium text-gray-700 mb-1">
-            {attr.display_name}
+            {attr.display_name || attr.name}
             {attr.is_required && <span className="text-red-500 ml-1">*</span>}
           </label>
 
-          <SelectField
+          <FieldControl
             attr={attr}
             value={attributeValues[attr.id]}
             onChange={(val) => handleAttrChange(attr.id, val)}
-            error={!!errors[attr.id]}
-            helperText={errors[attr.id]}
+            error={errors[attr.id]}
           />
+
+          {errors[attr.id] && (
+            <span className="text-xs text-red-600 mt-1">{errors[attr.id]}</span>
+          )}
         </div>
       ))}
 
@@ -186,204 +196,194 @@ const ApplicationForm = forwardRef(({ onCreated, existingData }, ref) => {
 
 export default ApplicationForm;
 
-/* ===================== helper input ===================== */
+/* ===================== helper inputs — как в TechnologyForm ===================== */
 
-function SelectField({ attr, value, onChange, error, helperText }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [dictOptions, setDictOptions] = useState([]);
-  const [loadedDictName, setLoadedDictName] = useState("");
-
+function FieldControl({ attr, value, onChange, error }) {
+  const opts = getOptions(attr); // нормализованные options (массив строк)
   const isMultiple = !!attr.is_multiple;
-  const selected = value ?? (isMultiple ? [] : "");
 
-  const rawOptions = attr.options;
-  const options = attr.dictionary_name
-    ? dictOptions
-    : Array.isArray(rawOptions)
-      ? rawOptions.map((o) => (typeof o === "string" ? o : o.value))
-      : typeof rawOptions === "string" && rawOptions.trim()
-        ? safeParseArray(rawOptions)
-        : [];
+  // MULTI-SELECT
+  if (attr.type === "select" && isMultiple) {
+    const selected = Array.isArray(value) ? value : normalizeToArray(value);
+    return (
+      <MultiSelect
+        options={opts}
+        value={selected}
+        onChange={onChange}
+        error={error}
+      />
+    );
+  }
 
-  useEffect(() => {
-    const dictName =
-      typeof attr.dictionary_name === "object"
-        ? attr.dictionary_name?.String
-        : attr.dictionary_name;
+  // SINGLE-SELECT
+  if (attr.type === "select") {
+    const val = value ?? "";
+    return (
+      <select
+        className={`w-full px-3 py-2 border rounded-md text-sm ${
+          error ? "border-red-500 ring-1 ring-red-300" : "border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-100"
+        }`}
+        value={val}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        <option value="">—</option>
+        {opts.map((o) => (
+          <option key={o} value={o}>
+            {o}
+          </option>
+        ))}
+      </select>
+    );
+  }
 
-    if (dictName && loadedDictName !== dictName) {
-      fetch(`/api/dictionaries/${encodeURIComponent(dictName)}`, {
-        headers: { Authorization: `Bearer ${getToken()}` },
-        credentials: "include",
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          const values = Array.isArray(data)
-            ? data.map((d) => (typeof d === "string" ? d : d.value))
-            : [];
-          setDictOptions(values);
-          setLoadedDictName(dictName);
-        })
-        .catch((err) => {
-          console.error("Ошибка загрузки справочника:", err);
-          setDictOptions([]);
-        });
-    }
-  }, [attr.dictionary_name, loadedDictName]);
-
-  const filtered = options.filter((opt) =>
-    String(opt).toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  // date
+  // DATE
   if (attr.type === "date") {
     return (
-      <>
-        <input
-          type="text"
-          value={selected}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="дд.мм.гггг, мм.гггг, q1.2024, 2024"
-          className={`w-full px-3 py-2 border rounded-md text-sm ${
-            error ? "border-red-500 ring-1 ring-red-300" : "border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-100"
-          }`}
-        />
-        {helperText && <span className="text-xs text-red-600 mt-1">{helperText}</span>}
-      </>
-    );
-  }
-
-  // select multiple
-  if (attr.type === "select" && isMultiple) {
-    return (
-      <div className="relative">
-        <div className="flex flex-wrap gap-1 mb-1">
-          {Array.isArray(selected) &&
-            selected.map((opt) => (
-              <span
-                key={String(opt)}
-                className="bg-blue-50 text-blue-800 text-xs px-2 py-1 rounded-full flex items-center gap-1 border border-blue-200"
-              >
-                {String(opt)}
-                <button
-                  type="button"
-                  onClick={() => onChange(selected.filter((v) => v !== opt))}
-                  className="text-blue-500 hover:text-red-600 font-bold"
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-        </div>
-
-        <input
-          type="text"
-          className={`w-full px-3 py-2 border rounded-md text-sm ${
-            error ? "border-red-500 ring-1 ring-red-300" : "border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-100"
-          }`}
-          placeholder="Поиск и выбор..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          onFocus={() => setIsOpen(true)}
-          onBlur={() => setTimeout(() => setIsOpen(false), 150)}
-        />
-        {helperText && <span className="text-xs text-red-600 mt-1 block">{helperText}</span>}
-
-        {isOpen && filtered.length > 0 && (
-          <div className="absolute z-10 mt-1 w-full border rounded bg-white shadow max-h-48 overflow-y-auto p-2 space-y-1">
-            {filtered.map((opt) => (
-              <label
-                key={String(opt)}
-                className="flex items-center gap-2 px-2 py-1 hover:bg-gray-50 rounded cursor-pointer"
-              >
-                <input
-                  type="checkbox"
-                  className="form-checkbox h-4 w-4 text-blue-600"
-                  checked={Array.isArray(selected) && selected.includes(opt)}
-                  onChange={(e) => {
-                    const checked = e.target.checked;
-                    const newValue = checked
-                      ? [...(selected || []), opt]
-                      : (selected || []).filter((v) => v !== opt);
-                    onChange(newValue);
-                  }}
-                />
-                <span>{String(opt)}</span>
-              </label>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // select single — сохраняем только по клику из списка
-  if (attr.type === "select") {
-    return (
-      <div className="relative">
-        <input
-          type="text"
-          className={`w-full px-3 py-2 border rounded-md text-sm ${
-            error ? "border-red-500 ring-1 ring-red-300" : "border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-100"
-          }`}
-          value={searchTerm || (selected ?? "")}
-          placeholder="Выберите..."
-          onChange={(e) => {
-            setSearchTerm(e.target.value); // только поиск
-          }}
-          onFocus={() => setIsOpen(true)}
-          onBlur={() => {
-            setTimeout(() => setIsOpen(false), 150);
-            if (searchTerm && !options.some((o) => String(o) === searchTerm)) {
-              setSearchTerm(""); // откат к сохранённому значению
-            }
-          }}
-        />
-        {helperText && <span className="text-xs text-red-600 mt-1 block">{helperText}</span>}
-
-        {isOpen && filtered.length > 0 && (
-          <ul className="absolute z-10 w-full bg-white border rounded shadow mt-1 max-h-40 overflow-y-auto">
-            {filtered.map((opt) => (
-              <li
-                key={String(opt)}
-                className="px-3 py-1 hover:bg-blue-100 cursor-pointer text-sm"
-                onClick={() => {
-                  onChange(opt);                 // сохраняем только здесь
-                  setSearchTerm(String(opt));
-                  setIsOpen(false);
-                }}
-              >
-                {String(opt)}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    );
-  }
-
-  // текст по умолчанию
-  return (
-    <>
       <input
         type="text"
-        value={selected}
+        placeholder="дд.мм.гггг / мм.гггг / q1.2025 / 2025"
+        value={value ?? ""}
         onChange={(e) => onChange(e.target.value)}
         className={`w-full px-3 py-2 border rounded-md text-sm ${
           error ? "border-red-500 ring-1 ring-red-300" : "border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-100"
         }`}
       />
-      {helperText && <span className="text-xs text-red-600 mt-1">{helperText}</span>}
-    </>
+    );
+  }
+
+  // BOOLEAN
+  if (attr.type === "boolean") {
+    const val = value === true || value === "true";
+    return (
+      <select
+        className={`w-full px-3 py-2 border rounded-md text-sm ${
+          error ? "border-red-500 ring-1 ring-red-300" : "border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-100"
+        }`}
+        value={val ? "true" : value === "" || value == null ? "" : "false"}
+        onChange={(e) => {
+          const v = e.target.value;
+          if (v === "") onChange("");
+          else onChange(v === "true");
+        }}
+      >
+        <option value="">—</option>
+        <option value="true">Да</option>
+        <option value="false">Нет</option>
+      </select>
+    );
+  }
+
+  // NUMBER
+  if (attr.type === "number") {
+    return (
+      <input
+        type="number"
+        value={value ?? ""}
+        onChange={(e) => onChange(e.target.value)}
+        className={`w-full px-3 py-2 border rounded-md text-sm ${
+          error ? "border-red-500 ring-1 ring-red-300" : "border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-100"
+        }`}
+      />
+    );
+  }
+
+  // DEFAULT (string/text)
+  return (
+    <input
+      type="text"
+      value={value ?? ""}
+      onChange={(e) => onChange(e.target.value)}
+      className={`w-full px-3 py-2 border rounded-md text-sm ${
+        error ? "border-red-500 ring-1 ring-red-300" : "border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-100"
+      }`}
+    />
   );
 }
 
-function safeParseArray(str) {
+function MultiSelect({ options, value, onChange, error }) {
+  return (
+    <div className="relative">
+      {/* Выбранные чипы */}
+      <div className="flex flex-wrap gap-1 mb-1">
+        {(value || []).map((opt) => (
+          <span
+            key={opt}
+            className="bg-blue-50 text-blue-800 text-xs px-2 py-1 rounded-full border border-blue-200"
+          >
+            {opt}
+            <button
+              type="button"
+              className="ml-1 font-bold"
+              onClick={() => onChange(value.filter((v) => v !== opt))}
+              aria-label="Удалить"
+            >
+              ×
+            </button>
+          </span>
+        ))}
+      </div>
+
+      {/* Выпадающий чек-лист */}
+      <details className="open:mb-2">
+        <summary
+          className={`list-none w-full px-3 py-2 border rounded-md text-sm cursor-pointer select-none ${
+            error ? "border-red-500 ring-1 ring-red-300" : "border-gray-300 hover:bg-gray-50"
+          }`}
+        >
+          Выбрать…
+        </summary>
+        <div className="border rounded-md p-2 max-h-48 overflow-y-auto bg-white shadow">
+          {options.map((opt) => {
+            const checked = value.includes(opt);
+            return (
+              <label key={opt} className="flex items-center gap-2 px-2 py-1 hover:bg-gray-50 rounded cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4"
+                  checked={checked}
+                  onChange={(e) => {
+                    const next = e.target.checked
+                      ? [...value, opt]
+                      : value.filter((v) => v !== opt);
+                    onChange(next);
+                  }}
+                />
+                <span>{opt}</span>
+              </label>
+            );
+          })}
+        </div>
+      </details>
+    </div>
+  );
+}
+
+function getOptions(attr) {
+  // поддерживаем варианты: массив строк ИЛИ JSON-строка
+  if (Array.isArray(attr.options)) {
+    return attr.options.map((o) => (typeof o === "string" ? o : o?.value ?? String(o)));
+  }
+  if (typeof attr.options === "string") {
+    try {
+      const parsed = JSON.parse(attr.options);
+      return Array.isArray(parsed)
+        ? parsed.map((o) => (typeof o === "string" ? o : o?.value ?? String(o)))
+        : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function normalizeToArray(x) {
+  if (Array.isArray(x)) return x;
+  if (x == null || x === "") return [];
   try {
-    const v = JSON.parse(str);
+    const v = JSON.parse(x);
     return Array.isArray(v) ? v : [];
   } catch {
-    return [];
+    // одиночное значение → массив из одного
+    return [String(x)];
   }
 }
