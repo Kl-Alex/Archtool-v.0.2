@@ -135,6 +135,13 @@ authRoutes.DELETE("/platforms/:id", handlers.DeletePlatform)
 
 authRoutes.PUT("/api/objects/:type/:id", handlers.UpdateObject)
 
+authRoutes.GET("/app_capabilities", handlers.GetAppCapabilities)
+authRoutes.GET("/app_capabilities/:id", handlers.GetAppCapabilityByID)
+authRoutes.POST("/app_capabilities", handlers.CreateAppCapability)
+authRoutes.PUT("/app_capabilities/:id", handlers.UpdateAppCapability)
+authRoutes.DELETE("/app_capabilities/:id", handlers.DeleteAppCapability)
+
+
 
 
 

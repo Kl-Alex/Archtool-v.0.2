@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
-import RegistryPage from "./pages/RegistryPage";
+import BusinessCapabilityRegistryPage from "./pages/BusinessCapabilityRegistryPage";
 import LoginPage from "./pages/LoginPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminPage from "./pages/AdminPage";
@@ -15,6 +15,7 @@ import AppCapabilitiesRegistryPage from "./pages/AppCapabilitiesRegistryPage";
 import AppCapabilityPassportPage from "./pages/AppCapabilityPassportPage";
 import InitiativesRegistryPage from "./pages/InitiativesRegistryPage";
 import InitiativePassportPage from "./pages/InitiativePassportPage";
+import BusinessCapabilityPassportPage from "./pages/BusinessCapabilityPassportPage";
 
 import { NotificationProvider } from "./components/NotificationContext";
 
@@ -25,9 +26,9 @@ function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
 
-          <Route path="/registry" element={
+          <Route path="/business-capabilities" element={
             <ProtectedRoute>
-              <RegistryPage />
+              <BusinessCapabilityRegistryPage />
             </ProtectedRoute>
           } />
 
@@ -43,7 +44,7 @@ function App() {
             </ProtectedRoute>
           } />
 
-          <Route path="*" element={<Navigate to="/registry" />} />
+          <Route path="*" element={<Navigate to="/business-capabilities" />} />
 
           <Route path="/applications/:id" element={<ApplicationPassport />} />
           <Route path="/graph" element={<GraphEditor />} />
@@ -55,8 +56,9 @@ function App() {
           <Route path="/platforms/:id" element={<PlatformPassportPage />} />
           <Route path="/app-capabilities" element={<AppCapabilitiesRegistryPage />} />
           <Route path="/app-capabilities/:id" element={<AppCapabilityPassportPage />} />
-          <Route path="/initiatives" element={<InitiativePassportPage />} />
+          <Route path="/initiatives" element={<InitiativesRegistryPage />} />
           <Route path="/initiatives/:id" element={<InitiativePassportPage />} />
+          <Route path="/capabilities/:id" element={<BusinessCapabilityPassportPage />} />
 
 
         </Routes>

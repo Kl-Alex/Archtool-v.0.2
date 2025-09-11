@@ -4,7 +4,6 @@ import BusinessCapabilityForm from "../components/BusinessCapabilityForm";
 import CreateModal from "../components/CreateModal";
 import EditModal from "../components/EditModal";
 import Spinner from "../components/Spinner";
-import BusinessCapabilityCard from "../components/BusinessCapabilityCard";
 import { Trash2, Info, Pencil, XCircle, Filter } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import LevelCombobox from "../components/LevelCombobox";
@@ -14,6 +13,8 @@ import { useHotkeys } from 'react-hotkeys-hook';
 import { useRef } from 'react';
 import { getToken } from "../utils/auth";
 import { useNotification } from "../components/NotificationContext";
+import { useNavigate } from "react-router-dom";
+
 
 
 
@@ -47,6 +48,8 @@ const RegistryPage = () => {
 
 
   const { notifyError, notifySuccess } = useNotification();
+
+  const nav = useNavigate();
 
 
   const fetchData = async () => {
@@ -237,16 +240,13 @@ const RegistryPage = () => {
                 >
                   <Pencil size={18} />
                 </button>
-
-
-
-                <button
-                  onClick={() => setSelectedCard(node)}
-                  className="text-gray-400 hover:text-blue-500"
-                  title="Информация"
-                >
-                  <Info size={18} />
-                </button>
+<button
+  onClick={() => nav(`/capabilities/${node.id}`)}
+  className="text-gray-400 hover:text-blue-500"
+  title="Открыть страницу объекта"
+>
+  <Info size={18} />
+</button>
 
                 <button
                   onClick={() => handleDelete(node.id)}

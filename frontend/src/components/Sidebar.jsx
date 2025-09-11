@@ -101,7 +101,7 @@ const Sidebar = () => {
               {registriesOpen && (
                 <ul id="registries-group" className="mt-2 ml-6 space-y-1">
                   <NavItem
-                    to="/registry"
+                    to="/business-capabilities"
                     label="Бизнес-способности"
                     icon={LayoutDashboard}
                     active={isActive("/registry")}

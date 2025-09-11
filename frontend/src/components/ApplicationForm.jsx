@@ -9,65 +9,87 @@ const ApplicationForm = forwardRef(({ onCreated, existingData }, ref) => {
   const [errors, setErrors] = useState({});
   const { notifyError } = useNotification();
 
-  useEffect(() => {
-    const fetchObjectTypeAndAttributes = async () => {
-      try {
-        const res = await fetch("/api/object_types", {
-          headers: { Authorization: `Bearer ${getToken()}` },
-          credentials: "include",
-        });
-        const types = await res.json();
-        const type = Array.isArray(types) ? types.find((t) => t.name === "Приложение") : null;
-        if (!type) return;
+useEffect(() => {
+  const fetchObjectTypeAndAttributes = async () => {
+    try {
+      const res = await fetch("/api/object_types", {
+        headers: { Authorization: `Bearer ${getToken()}` },
+        credentials: "include",
+      });
+      const types = await res.json();
+      const type = Array.isArray(types) ? types.find((t) => t.name === "Приложение") : null;
+      if (!type) return;
 
-        setObjectTypeId(type.id);
+      setObjectTypeId(type.id);
 
-        const attrRes = await fetch(`/api/object_types/${type.id}/attributes`, {
-          headers: { Authorization: `Bearer ${getToken()}` },
-          credentials: "include",
-        });
-        const attrs = await attrRes.json();
-        const safeAttrs = Array.isArray(attrs) ? attrs : [];
-        setAttributes(safeAttrs);
+      const attrRes = await fetch(`/api/object_types/${type.id}/attributes`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+        credentials: "include",
+      });
+      const attrs = await attrRes.json();
+      const safeAttrs = Array.isArray(attrs) ? attrs : [];
+      setAttributes(safeAttrs);
 
-        // initial values при редактировании
-        if (existingData) {
-          const valuesMap = {};
-          const src =
-            Array.isArray(existingData?.attribute_values)
-              ? existingData.attribute_values
-              : Array.isArray(existingData?.attributes)
-              ? existingData.attributes
-              : [];
+      // === ВОССТАНОВЛЕНИЕ ЗНАЧЕНИЙ В МОДАЛКЕ ===
+// 3) Значения при редактировании (поддерживаем несколько форматов)
+if (existingData) {
+  const valuesMap = {};
 
-          for (const attr of safeAttrs) {
-            const found = src.find((v) => (v.attribute_id ?? v.id) === attr.id);
-            if (!found) continue;
+  // Источник 1: массив значений [{attribute_id, value_text|value}]
+  const fromArray =
+    Array.isArray(existingData?.attribute_values)
+      ? existingData.attribute_values
+      : Array.isArray(existingData?.attributes)
+      ? existingData.attributes
+      : null;
 
-            const raw =
-              found.value_text !== undefined && found.value_text !== null
-                ? found.value_text
-                : found.value !== undefined && found.value !== null
-                ? found.value
-                : "";
-
-            if (attr.type === "select" && attr.is_multiple) {
-              valuesMap[attr.id] = normalizeToArray(raw);
-            } else if (attr.type === "boolean") {
-              valuesMap[attr.id] = raw === true || raw === "true" ? true : raw === "" ? "" : false;
-            } else {
-              valuesMap[attr.id] = raw;
-            }
-          }
-          setAttributeValues(valuesMap);
+  // Универсальный геттер значения для конкретного атрибута
+  const pickValue = (attr) => {
+    // a) из массива
+    if (fromArray) {
+      const found = fromArray.find((v) => (v.attribute_id ?? v.id) === attr.id);
+      if (found) return found.value_text ?? found.value ?? "";
+    }
+    // b) из “плоского” объекта по имени атрибута
+    if (existingData && attr?.name) {
+      const x = existingData[attr.name];
+      if (x !== undefined) {
+        if (x && typeof x === "object") {
+          if ("value" in x) return x.value ?? "";
+          if ("value_text" in x) return x.value_text ?? "";
         }
-      } catch (e) {
-        console.error(e);
+        return x ?? "";
       }
-    };
+    }
+    return "";
+  };
 
-    fetchObjectTypeAndAttributes();
-  }, [existingData]);
+  for (const attr of safeAttrs) {
+    const raw = pickValue(attr);
+
+    if (attr.type === "select" && attr.is_multiple) {
+      valuesMap[attr.id] = normalizeToArray(raw);
+    } else if (attr.type === "boolean") {
+      valuesMap[attr.id] =
+        raw === true || raw === "true" ? true : raw === "" || raw == null ? "" : false;
+    } else {
+      valuesMap[attr.id] = raw;
+    }
+  }
+
+  setAttributeValues(valuesMap);
+}
+
+
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  fetchObjectTypeAndAttributes();
+  // важно: реагируем на смену id записи
+}, [existingData?.id]);
+
 
   const validateDate = (val) => {
     if (!val) return true;
@@ -85,6 +107,7 @@ const ApplicationForm = forwardRef(({ onCreated, existingData }, ref) => {
   };
 
   const handleSubmit = async () => {
+    // базовая валидация
     const newErrors = {};
     for (const attr of attributes) {
       const val = attributeValues[attr.id];
@@ -106,9 +129,10 @@ const ApplicationForm = forwardRef(({ onCreated, existingData }, ref) => {
       return false;
     }
 
-    // общий список атрибутов
-    const attrsPayload = Object.entries(attributeValues).map(([attrId, value]) => {
-      const meta = attributes.find((a) => a.id === Number(attrId));
+    // универсальная сборка значений
+    const attrsPayload = Object.entries(attributeValues).map(([attrIdStr, value]) => {
+      const attrId = Number(attrIdStr);
+      const meta = attributes.find((a) => a.id === attrId);
       let out = value;
 
       if (meta?.type === "select" && meta.is_multiple) {
@@ -119,16 +143,15 @@ const ApplicationForm = forwardRef(({ onCreated, existingData }, ref) => {
         out = value ?? "";
       }
 
-      return { attribute_id: Number(attrId), value: out };
+      return { attribute_id: attrId, value: out };
     });
 
-    // разные payload/URL для POST и PUT
+    // PUT — новый формат, POST — старый
     const url = existingData ? `/api/applications/${existingData.id}` : `/api/applications`;
     const method = existingData ? "PUT" : "POST";
-
     const payload = existingData
-      ? { attributes: attrsPayload } // новый формат для UPDATE
-      : { object_type_id: objectTypeId, attributes: attrsPayload }; // старый для CREATE
+      ? { attributes: attrsPayload }
+      : { object_type_id: objectTypeId, attributes: attrsPayload };
 
     try {
       const res = await fetch(url, {
@@ -183,12 +206,11 @@ const ApplicationForm = forwardRef(({ onCreated, existingData }, ref) => {
           />
 
           {errors[attr.id] && (
-            <span className="text-xs text-red-600 mt-1">{errors[attr.id]}</span>
+            <span className="text-xs text-red-600 mt-1">{String(errors[attr.id])}</span>
           )}
         </div>
       ))}
 
-      {/* скрытая кнопка для программного submit */}
       <button id="submit-app-form" type="button" className="hidden" onClick={handleSubmit} />
     </form>
   );
@@ -301,11 +323,13 @@ function FieldControl({ attr, value, onChange, error }) {
 }
 
 function MultiSelect({ options, value, onChange, error }) {
+  const arr = Array.isArray(value) ? value : [];
+
   return (
     <div className="relative">
-      {/* Выбранные чипы */}
+      {/* выбранные чипы */}
       <div className="flex flex-wrap gap-1 mb-1">
-        {(value || []).map((opt) => (
+        {arr.map((opt) => (
           <span
             key={opt}
             className="bg-blue-50 text-blue-800 text-xs px-2 py-1 rounded-full border border-blue-200"
@@ -314,7 +338,7 @@ function MultiSelect({ options, value, onChange, error }) {
             <button
               type="button"
               className="ml-1 font-bold"
-              onClick={() => onChange(value.filter((v) => v !== opt))}
+              onClick={() => onChange(arr.filter((v) => v !== opt))}
               aria-label="Удалить"
             >
               ×
@@ -323,7 +347,7 @@ function MultiSelect({ options, value, onChange, error }) {
         ))}
       </div>
 
-      {/* Выпадающий чек-лист */}
+      {/* выпадающий чек-лист */}
       <details className="open:mb-2">
         <summary
           className={`list-none w-full px-3 py-2 border rounded-md text-sm cursor-pointer select-none ${
@@ -334,7 +358,7 @@ function MultiSelect({ options, value, onChange, error }) {
         </summary>
         <div className="border rounded-md p-2 max-h-48 overflow-y-auto bg-white shadow">
           {options.map((opt) => {
-            const checked = value.includes(opt);
+            const checked = arr.includes(opt);
             return (
               <label key={opt} className="flex items-center gap-2 px-2 py-1 hover:bg-gray-50 rounded cursor-pointer">
                 <input
@@ -343,8 +367,8 @@ function MultiSelect({ options, value, onChange, error }) {
                   checked={checked}
                   onChange={(e) => {
                     const next = e.target.checked
-                      ? [...value, opt]
-                      : value.filter((v) => v !== opt);
+                      ? [...arr, opt]
+                      : arr.filter((v) => v !== opt);
                     onChange(next);
                   }}
                 />
@@ -359,7 +383,6 @@ function MultiSelect({ options, value, onChange, error }) {
 }
 
 function getOptions(attr) {
-  // поддерживаем варианты: массив строк ИЛИ JSON-строка
   if (Array.isArray(attr.options)) {
     return attr.options.map((o) => (typeof o === "string" ? o : o?.value ?? String(o)));
   }
@@ -383,7 +406,6 @@ function normalizeToArray(x) {
     const v = JSON.parse(x);
     return Array.isArray(v) ? v : [];
   } catch {
-    // одиночное значение → массив из одного
     return [String(x)];
   }
 }

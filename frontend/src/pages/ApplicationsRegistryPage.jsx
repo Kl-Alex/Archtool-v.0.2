@@ -303,23 +303,24 @@ export default function ApplicationsRegistryPage() {
           </CreateModal>
         )}
 
-        {showEditModal && editingItem && (
-          <EditModal
-            title="Редактирование приложения"
-            onClose={() => {
-              setShowEditModal(false);
-              setEditingItem(null);
-            }}
-            onSubmit={() =>
-              document.getElementById("submit-app-form")?.click()
-            }
-          >
-            <ApplicationForm
-              existingData={editingItem}
-              onCreated={handleCreatedOrUpdated}
-            />
-          </EditModal>
-        )}
+{showEditModal && editingItem && (
+  <EditModal
+    title="Редактирование приложения"
+    onClose={() => {
+      setShowEditModal(false);
+      setEditingItem(null);
+    }}
+    onSubmit={() =>
+      document.getElementById("submit-app-form")?.click()
+    }
+  >
+    <ApplicationForm
+      key={editingItem?.id || "new"}   // 👈 важно
+      existingData={editingItem}
+      onCreated={handleCreatedOrUpdated}
+    />
+  </EditModal>
+)}
       </main>
     </div>
   );
