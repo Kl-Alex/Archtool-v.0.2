@@ -122,7 +122,7 @@ authRoutes.GET("/diagrams/:id/bindings", dbh.GetBindingByCell)
 authRoutes.DELETE("/diagrams/:id/bindings", dbh.DeleteBindingByCell)
 
 authRoutes.GET("/technologies", handlers.GetTechnologies)
-authRoutes.GET("technologies/:id", handlers.GetTechnologyByID)
+authRoutes.GET("/technologies/:id", handlers.GetTechnologyByID)
 authRoutes.POST("/technologies", handlers.CreateTechnology)
 authRoutes.PUT("/technologies/:id", handlers.UpdateTechnology)
 authRoutes.DELETE("/technologies/:id", handlers.DeleteTechnology)
@@ -133,13 +133,19 @@ authRoutes.POST("/platforms", handlers.CreatePlatform)
 authRoutes.PUT("/platforms/:id", handlers.UpdatePlatform)
 authRoutes.DELETE("/platforms/:id", handlers.DeletePlatform)
 
-authRoutes.PUT("/api/objects/:type/:id", handlers.UpdateObject)
+authRoutes.PUT("/objects/:type/:id", handlers.UpdateObject)
 
 authRoutes.GET("/app_capabilities", handlers.GetAppCapabilities)
 authRoutes.GET("/app_capabilities/:id", handlers.GetAppCapabilityByID)
 authRoutes.POST("/app_capabilities", handlers.CreateAppCapability)
 authRoutes.PUT("/app_capabilities/:id", handlers.UpdateAppCapability)
 authRoutes.DELETE("/app_capabilities/:id", handlers.DeleteAppCapability)
+
+authRoutes.GET("/initiatives", handlers.GetInitiatives)
+authRoutes.GET("/initiatives/:id", handlers.GetInitiativeByID)
+authRoutes.POST("/initiatives", handlers.CreateInitiative)
+authRoutes.PUT("/initiatives/:id", handlers.UpdateInitiative)
+authRoutes.DELETE("/initiatives/:id", handlers.DeleteInitiative)
 
 
 

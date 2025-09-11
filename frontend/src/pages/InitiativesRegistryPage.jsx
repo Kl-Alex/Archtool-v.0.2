@@ -1,309 +1,333 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+// src/pages/InitiativesRegistryPage.jsx
+import { useEffect, useRef, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import CreateModal from "../components/CreateModal";
 import EditModal from "../components/EditModal";
 import Spinner from "../components/Spinner";
-import { Pencil, Trash2, Info, Filter, XCircle, ChevronsUpDown, ArrowUpAZ, ArrowDownAZ } from "lucide-react";
+import InitiativeForm from "../components/InitiativeForm";
 import { getToken } from "../utils/auth";
 import { useNotification } from "../components/NotificationContext";
-
-import InitiativeForm from "../components/InitiativeForm";
-import InitiativePassportPage from "./InitiativePassportPage";
-
-const VISIBLE_COLS_PRIORITY = [
-  "name","description","status","owner","it_domain","start_date","end_date","budget"
-];
+import { Pencil, Trash2, Info, Filter, XCircle, ArrowUpDown } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import AssistantPanel from "../components/AssistantPanel";
+import OwnerCombobox from "../components/OwnerCombobox";
+import DomainCombobox from "../components/DomainCombobox";
+import { useHotkeys } from "react-hotkeys-hook";
 
 export default function InitiativesRegistryPage() {
-  const { notifyError, notifySuccess } = useNotification();
-
-  const [items, setItems] = useState([]);
+  const [initiatives, setInitiatives] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const [search, setSearch] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
   const [filterOwner, setFilterOwner] = useState("");
   const [filterDomain, setFilterDomain] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
-  const [showFilters, setShowFilters] = useState(false);
-
-  const [sortKey, setSortKey] = useState("name");
   const [sortAsc, setSortAsc] = useState(true);
 
-  const [showCreate, setShowCreate] = useState(false);
-  const [showEdit, setShowEdit] = useState(false);
+  const [highlightedId, setHighlightedId] = useState(null);
+
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
-  const [selectedCard, setSelectedCard] = useState(null);
 
-  const createRef = useRef(null);
-  const editRef   = useRef(null);
+  const createFormRef = useRef();
+  const editFormRef = useRef();
 
-  const fetchData = async () => {
+  const navigate = useNavigate();
+  const { notifyError, notifySuccess } = useNotification();
+
+  useHotkeys("esc", () => {
+    setShowCreateModal(false);
+    setShowEditModal(false);
+    setShowFilters(false);
+  });
+
+  const fetchInitiatives = async () => {
     setLoading(true);
     try {
       const res = await fetch("/api/initiatives", {
-        headers: { Authorization: `Bearer ${getToken()}` }
+        headers: { Authorization: `Bearer ${getToken()}` },
       });
       if (!res.ok) throw new Error("Ошибка загрузки инициатив");
       const data = await res.json();
-      setItems(Array.isArray(data) ? data : []);
-    } catch (e) {
-      notifyError(e.message || "Ошибка загрузки");
+      setInitiatives(Array.isArray(data) ? data : []);
+    } catch (err) {
+      notifyError(err.message || "Ошибка загрузки");
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    fetchInitiatives();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleCreatedOrUpdated = async (id) => {
+    await fetchInitiatives();
+    setShowCreateModal(false);
+    setShowEditModal(false);
+    setEditingItem(null);
+    if (id) {
+      setHighlightedId(String(id));
+      setTimeout(() => setHighlightedId(null), 5000);
+    }
+    notifySuccess("Инициатива сохранена");
+  };
 
   const handleDelete = async (id) => {
-    if (!confirm("Удалить инициативу?")) return;
+    const confirmed = window.confirm("Удалить эту инициативу?");
+    if (!confirmed) return;
+
     const res = await fetch(`/api/initiatives/${id}`, {
       method: "DELETE",
-      headers: { Authorization: `Bearer ${getToken()}` }
+      headers: { Authorization: `Bearer ${getToken()}` },
     });
+
     if (res.ok) {
       notifySuccess("Инициатива удалена");
-      fetchData();
+      fetchInitiatives();
     } else {
-      notifyError("Ошибка при удалении");
+      notifyError("Ошибка удаления");
     }
   };
 
   const handleEditOpen = async (row) => {
     try {
       const res = await fetch(`/api/initiatives/${row.id}`, {
-        headers: { Authorization: `Bearer ${getToken()}` }
+        headers: { Authorization: `Bearer ${getToken()}` },
       });
       if (!res.ok) throw new Error("Не удалось получить данные инициативы");
       const full = await res.json();
       setEditingItem(full);
-      setShowEdit(true);
+      setShowEditModal(true);
     } catch (e) {
       notifyError(e.message || "Ошибка открытия");
     }
   };
 
-  const handleCreatedOrUpdated = async () => {
-    await fetchData();
-    setShowCreate(false);
-    setShowEdit(false);
-    setEditingItem(null);
-    notifySuccess("Сохранено");
+  const owners  = [...new Set(initiatives.map(i => i?.owner).filter(Boolean))];
+  const domains = [...new Set(initiatives.map(i => i?.it_domain).filter(Boolean))];
+
+  const norm = (v) => (v ?? "").toString().toLowerCase();
+  const matchesQuery = (i) => {
+    const q = norm(search);
+    if (!q) return true;
+    return (
+      norm(i.name).includes(q) ||
+      norm(i.description).includes(q) ||
+      norm(i.owner).includes(q) ||
+      norm(i.it_domain).includes(q) ||
+      norm(i.status).includes(q)
+    );
   };
 
-  // Колонки таблицы: берём пересечение «приоритетных» с реально имеющимися полями
-  const allKeys = useMemo(() => {
-    const keys = new Set();
-    items.forEach(i => Object.keys(i || {}).forEach(k => keys.add(k)));
-    return Array.from(keys);
-  }, [items]);
-
-  const visibleCols = useMemo(() => {
-    const pr = VISIBLE_COLS_PRIORITY.filter(k => allKeys.includes(k));
-    // всегда первая колонка — name, если есть
-    return pr.length ? pr : allKeys.slice(0, 6);
-  }, [allKeys]);
-
-  const owners  = useMemo(() => Array.from(new Set(items.map(x => x.owner).filter(Boolean))), [items]);
-  const domains = useMemo(() => Array.from(new Set(items.map(x => x.it_domain).filter(Boolean))), [items]);
-  const statuses= useMemo(() => Array.from(new Set(items.map(x => x.status).filter(Boolean))), [items]);
-
-  const filteredSorted = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    let arr = items.filter(i => {
-      const matchesQ = !q || Object.values(i).some(v => String(v ?? "").toLowerCase().includes(q));
-      const okOwner  = !filterOwner || i.owner === filterOwner;
-      const okDom    = !filterDomain || i.it_domain === filterDomain;
-      const okStat   = !filterStatus || i.status === filterStatus;
-      return matchesQ && okOwner && okDom && okStat;
+  const filtered = initiatives
+    .filter(i => (!filterOwner || i?.owner === filterOwner))
+    .filter(i => (!filterDomain || i?.it_domain === filterDomain))
+    .filter(matchesQuery)
+    .sort((a, b) => {
+      const an = (a?.name ?? "");
+      const bn = (b?.name ?? "");
+      return sortAsc ? an.localeCompare(bn) : bn.localeCompare(an);
     });
 
-    arr.sort((a, b) => {
-      const av = (a?.[sortKey] ?? "").toString().toLowerCase();
-      const bv = (b?.[sortKey] ?? "").toString().toLowerCase();
-      if (av < bv) return sortAsc ? -1 : 1;
-      if (av > bv) return sortAsc ? 1 : -1;
-      return 0;
-    });
-
-    return arr;
-  }, [items, search, filterOwner, filterDomain, filterStatus, sortKey, sortAsc]);
+  const highlightMatch = (text, query) => {
+    const safe = (text ?? "").toString();
+    if (!query) return safe;
+    const parts = safe.split(new RegExp(`(${query})`, "gi"));
+    return parts.map((part, i) =>
+      part.toLowerCase() === query.toLowerCase() ? (
+        <mark key={i} className="bg-lentaYellow text-black">{part}</mark>
+      ) : (
+        <span key={i}>{part}</span>
+      )
+    );
+  };
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen bg-gray-50">
       <Sidebar />
-      <main className="flex-1 p-6 bg-lentaWhite overflow-auto">
-        <div className="flex items-center justify-between gap-2 mb-4">
-          <h1 className="text-2xl font-bold text-lentaBlue">Инициативы</h1>
+      <main className="flex-1 p-6 overflow-auto bg-lentaWhite">
+        <AssistantPanel />
+
+        <div className="flex items-center justify-between mb-4 gap-2">
+          <h1 className="text-2xl font-bold text-lentaBlue">Реестр инициатив</h1>
           <div className="flex gap-2">
             <button
+              onClick={() => setSortAsc((v) => !v)}
+              className="text-sm text-lentaBlue border border-lentaBlue rounded px-3 py-1 hover:bg-lentaBlue hover:text-white flex items-center gap-1"
+              title="Сортировать по имени"
+            >
+              <ArrowUpDown size={16} />
+              {sortAsc ? "По возр. (A→Z)" : "По убыв. (Z→A)"}
+            </button>
+            <button
+              onClick={() => setShowCreateModal(true)}
               className="bg-lentaBlue text-white px-4 py-2 rounded hover:bg-blue-700"
-              onClick={() => setShowCreate(true)}
-            >Создать</button>
+            >
+              Создать
+            </button>
           </div>
         </div>
 
-        <div className="mb-3">
+        <div className="mb-4">
           <input
-            className="w-full p-2 border rounded"
-            placeholder="Поиск по любому столбцу"
+            type="text"
+            placeholder="Поиск по названию, описанию, владельцу, домену или статусу"
             value={search}
-            onChange={(e)=>setSearch(e.target.value)}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded"
           />
         </div>
 
-        <div className="mb-4 flex items-start flex-wrap gap-2">
-          <button
-            onClick={()=>setShowFilters(p=>!p)}
-            className="flex items-center gap-1 text-lentaBlue border border-lentaBlue px-3 py-1 rounded hover:bg-lentaBlue hover:text-white"
-          >
-            <Filter size={16} /> Фильтры
-          </button>
+        <div className="mb-4 flex items-start flex-wrap sm:flex-nowrap gap-2">
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={() => setShowFilters((prev) => !prev)}
+              className="flex items-center gap-1 text-lentaBlue border border-lentaBlue px-3 py-1 rounded hover:bg-lentaBlue hover:text-white"
+            >
+              <Filter size={16} />
+              Фильтры
+            </button>
 
-          {showFilters && (
-            <div className="flex flex-wrap gap-2 items-center">
-              <button
-                className="text-red-600 hover:text-red-800"
-                title="Сбросить фильтры"
-                onClick={()=>{
-                  setFilterOwner(""); setFilterDomain(""); setFilterStatus(""); setSearch("");
-                }}
-              >
-                <XCircle size={20} />
-              </button>
-
-              <select className="border rounded p-2" value={filterOwner} onChange={e=>setFilterOwner(e.target.value)}>
-                <option value="">Владелец: все</option>
-                {owners.map(o=> <option key={o} value={o}>{o}</option>)}
-              </select>
-
-              <select className="border rounded p-2" value={filterDomain} onChange={e=>setFilterDomain(e.target.value)}>
-                <option value="">Домен: все</option>
-                {domains.map(d=> <option key={d} value={d}>{d}</option>)}
-              </select>
-
-              <select className="border rounded p-2" value={filterStatus} onChange={e=>setFilterStatus(e.target.value)}>
-                <option value="">Статус: все</option>
-                {statuses.map(s=> <option key={s} value={s}>{s}</option>)}
-              </select>
-
-              <div className="flex items-center gap-2 ml-auto">
-                <span className="text-sm text-gray-500">Сортировка:</span>
-                <select className="border rounded p-2" value={sortKey} onChange={e=>setSortKey(e.target.value)}>
-                  {visibleCols.map(c=> <option key={c} value={c}>{c}</option>)}
-                </select>
+            {showFilters && (
+              <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
                 <button
-                  className="p-2 border rounded hover:bg-gray-50"
-                  onClick={()=>setSortAsc(a=>!a)}
-                  title="Сменить направление сортировки"
+                  onClick={() => {
+                    setFilterOwner("");
+                    setFilterDomain("");
+                    setSearch("");
+                  }}
+                  className="text-red-600 hover:text-red-800 transition shrink-0"
+                  title="Сбросить фильтры"
                 >
-                  {sortAsc ? <ArrowUpAZ className="w-4 h-4" /> : <ArrowDownAZ className="w-4 h-4" />}
+                  <XCircle size={20} />
                 </button>
+
+                <div className="flex-1 min-w-[150px]">
+                  <OwnerCombobox
+                    owners={owners}
+                    selectedOwner={filterOwner}
+                    setSelectedOwner={setFilterOwner}
+                  />
+                </div>
+
+                <div className="flex-1 min-w-[150px]">
+                  <DomainCombobox
+                    domains={domains}
+                    selectedDomain={filterDomain}
+                    setSelectedDomain={setFilterDomain}
+                  />
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
-        <div className="bg-white border rounded-xl shadow overflow-hidden">
-          {loading ? (
-            <div className="p-6"><Spinner /></div>
-          ) : (
-            <div className="overflow-auto">
-              <table className="min-w-full text-sm">
-                <thead className="bg-gray-50 text-gray-600">
-                  <tr>
-                    {visibleCols.map(col=>(
-                      <th key={col} className="text-left px-3 py-2 whitespace-nowrap">
-                        <button
-                          className="inline-flex items-center gap-1 hover:text-lentaBlue"
-                          onClick={()=>{
-                            if (sortKey === col) setSortAsc(a=>!a);
-                            else { setSortKey(col); setSortAsc(true); }
-                          }}
-                        >
-                          {col}
-                          <ChevronsUpDown className="w-3 h-3" />
-                        </button>
-                      </th>
-                    ))}
-                    <th className="px-3 py-2 text-right">Действия</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredSorted.map(row=>(
-                    <tr key={row.id} className="border-t hover:bg-gray-50">
-                      {visibleCols.map(col=>(
-                        <td key={col} className="px-3 py-2 align-top whitespace-nowrap">
-                          {renderCell(row[col])}
-                        </td>
-                      ))}
-                      <td className="px-3 py-2 text-right">
-                        <div className="inline-flex gap-2">
-                          <button className="text-gray-500 hover:text-lentaBlue" title="Инфо" onClick={() => navigate(`/initiatives/${row.id}`)}>
-                            <Info size={18}/>
-                          </button>
-                          <button className="text-gray-500 hover:text-lentaBlue" title="Изменить" onClick={()=>handleEditOpen(row)}>
-                            <Pencil size={18}/>
-                          </button>
-                          <button className="text-gray-500 hover:text-red-600" title="Удалить" onClick={()=>handleDelete(row.id)}>
-                            <Trash2 size={18}/>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {!filteredSorted.length && (
-                    <tr><td className="px-3 py-6 text-center text-gray-400" colSpan={visibleCols.length+1}>Нет данных</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        {loading ? (
+          <Spinner />
+        ) : (
+          <ul className="space-y-3">
+            {filtered.map((i) => {
+              const isHighlighted = highlightedId === String(i.id);
+              return (
+                <li
+                  key={i.id}
+                  className={`p-4 bg-white rounded-lg border shadow flex justify-between items-center group transition-colors duration-500 ${
+                    isHighlighted ? "bg-lentaYellow border-yellow-400" : ""
+                  }`}
+                >
+                  <div>
+                    <div className="font-semibold text-gray-800">
+                      {highlightMatch(i.name, search)}
+                    </div>
+                    <div className="text-xs text-gray-500">ID: {i.id}</div>
+                    {(i.description || i.owner || i.it_domain || i.status) && (
+                      <div className="text-xs text-lentaBlue mt-1">
+                        {i.description && (
+                          <span className="mr-2">
+                            {highlightMatch(i.description, search)}
+                          </span>
+                        )}
+                        {i.status && (
+                          <span className="mr-2">
+                            Статус: {highlightMatch(i.status, search)}
+                          </span>
+                        )}
+                        {i.owner && (
+                          <span className="mr-2">
+                            Владелец: {highlightMatch(i.owner, search)}
+                          </span>
+                        )}
+                        {i.it_domain && (
+                          <span>
+                            Домен: {highlightMatch(i.it_domain, search)}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
 
-        {showCreate && (
+                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                    <button
+                      onClick={() => navigate(`/initiatives/${i.id}`)}
+                      className="text-blue-600 hover:text-blue-800"
+                      title="Паспорт инициативы"
+                    >
+                      <Info size={18} />
+                    </button>
+                    <button
+                      onClick={() => handleEditOpen(i)}
+                      className="text-gray-500 hover:text-lentaBlue"
+                      title="Редактировать"
+                    >
+                      <Pencil size={18} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(i.id)}
+                      className="text-red-500 hover:text-red-700"
+                      title="Удалить"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+            {filtered.length === 0 && (
+              <li className="text-gray-500 text-sm">Нет инициатив</li>
+            )}
+          </ul>
+        )}
+
+        {showCreateModal && (
           <CreateModal
             title="Создание инициативы"
-            onClose={()=>setShowCreate(false)}
-            onSubmit={() => createRef.current?.submit() ?? false}
+            onClose={() => setShowCreateModal(false)}
+            onSubmit={() => createFormRef.current && createFormRef.current.submit()}
           >
-            <InitiativeForm ref={createRef} onCreated={handleCreatedOrUpdated} notifyError={(m)=>notifyError(m)} />
+            <InitiativeForm ref={createFormRef} onCreated={handleCreatedOrUpdated} />
           </CreateModal>
         )}
 
-        {showEdit && editingItem && (
+        {showEditModal && editingItem && (
           <EditModal
-            title="Изменение инициативы"
-            onClose={()=>{ setShowEdit(false); setEditingItem(null); }}
-            onSubmit={() => editRef.current?.submit() ?? false}
+            title="Редактирование инициативы"
+            onClose={() => {
+              setShowEditModal(false);
+              setEditingItem(null);
+            }}
+            onSubmit={() => editFormRef.current && editFormRef.current.submit()}
           >
-            <InitiativeForm ref={editRef} existingData={editingItem} onCreated={handleCreatedOrUpdated} notifyError={(m)=>notifyError(m)} />
+            <InitiativeForm
+              ref={editFormRef}
+              existingData={editingItem}
+              onCreated={handleCreatedOrUpdated}
+            />
           </EditModal>
-        )}
-
-        {selectedCard && (
-          <InitiativePassportPage
-            initiative={selectedCard}
-            onClose={()=>setSelectedCard(null)}
-            onUpdated={handleCreatedOrUpdated}
-          />
         )}
       </main>
     </div>
   );
-}
-
-function renderCell(val) {
-  if (val == null || val === "") return "—";
-  if (val === true || val === "true") return "Да";
-  if (val === false || val === "false") return "Нет";
-  if (Array.isArray(val)) return val.length ? val.join(", ") : "—";
-  const s = String(val);
-  if ((s.startsWith("[") && s.endsWith("]")) || (s.startsWith("{") && s.endsWith("}"))) {
-    try {
-      const v = JSON.parse(s);
-      return Array.isArray(v) ? (v.length ? v.join(", ") : "—") : s;
-    } catch { return s; }
-  }
-  return s;
 }
