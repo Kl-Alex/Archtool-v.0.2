@@ -1,6 +1,7 @@
 import { useEffect, useState, forwardRef, useImperativeHandle } from "react";
 import { getToken } from "../utils/auth";
 import { useNotification } from "../components/NotificationContext";
+import DateSmartField from "../components/DateSmartField"
 
 const TechnologyForm = forwardRef(({ onCreated, existingData }, ref) => {
   const [objectTypeId, setObjectTypeId] = useState(null);
@@ -334,19 +335,17 @@ function FieldControl({ attr, value, onChange, error }) {
   }
 
   // DATE (текст с маской форматов проекта)
-  if (attr.type === "date") {
-    return (
-      <input
-        type="text"
-        placeholder="дд.мм.гггг / мм.гггг / q1.2025 / 2025"
-        value={value ?? ""}
-        onChange={(e) => onChange(e.target.value)}
-        className={`w-full px-3 py-2 border rounded-md text-sm ${
-          error ? "border-red-500 ring-1 ring-red-300" : "border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-100"
-        }`}
-      />
-    );
-  }
+// ...внутри FieldControl
+// DATE (умный контрол с форматами проекта)
+if (attr.type === "date") {
+  return (
+    <DateSmartField
+      value={value ?? ""}
+      onChange={onChange}
+      error={error}
+    />
+  );
+}
 
   // BOOLEAN
   if (attr.type === "boolean") {
@@ -483,4 +482,107 @@ function normalizeToArray(x) {
     // одиночное значение → массив из одного
     return [String(x)];
   }
+}
+
+// ====== DATE HELPERS ======
+const DATE_PATTERNS = {
+  full: /^([0-2]\d|3[01])\.(0\d|1[0-2])\.(19|20)\d{2}$/, // dd.mm.yyyy
+  month: /^(0\d|1[0-2])\.(19|20)\d{2}$/,                 // mm.yyyy
+  quarter: /^q[1-4]\.(19|20)\d{2}$/i,                    // q1.yyyy
+  year: /^(19|20)\d{2}$/,                                // yyyy
+};
+
+function validateDateValue(v) {
+  if (!v) return "";
+  if (DATE_PATTERNS.full.test(v)) {
+    // доп. проверка валидности даты (30/31 дни, високосность)
+    const [dd, mm, yyyy] = v.split(".").map(Number);
+    if (!isValidDate(dd, mm, yyyy)) return "Неверный день месяца";
+    return "";
+  }
+  if (DATE_PATTERNS.month.test(v)) return "";
+  if (DATE_PATTERNS.quarter.test(v)) return "";
+  if (DATE_PATTERNS.year.test(v)) return "";
+  return "Недопустимый формат даты";
+}
+
+function isValidDate(d, m, y) {
+  const daysInMonth = [31, isLeap(y) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return m >= 1 && m <= 12 && d >= 1 && d <= daysInMonth[m - 1];
+}
+function isLeap(y) {
+  return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+}
+
+function toNativeDate(v) {
+  // dd.mm.yyyy -> yyyy-mm-dd (или "")
+  if (!DATE_PATTERNS.full.test(v)) return "";
+  const [dd, mm, yyyy] = v.split(".");
+  return `${yyyy}-${mm}-${dd}`;
+}
+function fromNativeDate(val) {
+  // yyyy-mm-dd -> dd.mm.yyyy
+  if (!val) return "";
+  const [yyyy, mm, dd] = val.split("-");
+  return `${dd}.${mm}.${yyyy}`;
+}
+
+function toNativeMonth(v) {
+  // mm.yyyy -> yyyy-mm
+  if (!DATE_PATTERNS.month.test(v)) return "";
+  const [mm, yyyy] = v.split(".");
+  return `${yyyy}-${mm}`;
+}
+function fromNativeMonth(val) {
+  // yyyy-mm -> mm.yyyy
+  if (!val) return "";
+  const [yyyy, mm] = val.split("-");
+  return `${mm}.${yyyy}`;
+}
+
+function extractQuarter(v) {
+  const m = v.match(/^q([1-4])\.(\d{4})$/i);
+  return m ? `q${m[1]}` : "q1";
+}
+function extractYear(v) {
+  const mQ = v.match(/^q[1-4]\.(\d{4})$/i);
+  if (mQ) return mQ[1];
+  const mM = v.match(/^(0\d|1[0-2])\.(\d{4})$/);
+  if (mM) return mM[2];
+  const mY = v.match(/^(\d{4})$/);
+  if (mY) return mY[1];
+  const mF = v.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (mF) return mF[3];
+  return "";
+}
+function clampQuarter(q) {
+  const n = String(q).toLowerCase().replace(/[^1-4]/g, "");
+  const num = Number(n || "1");
+  return Math.min(4, Math.max(1, num));
+}
+function sanitizeYear(y) {
+  const num = Number(String(y).replace(/[^\d]/g, ""));
+  if (!num) return "";
+  return String(Math.min(2100, Math.max(1900, num)));
+}
+
+function coerceToTemplate(v, mode) {
+  // приводим значение под выбранный режим, не ломая введённое
+  if (!v) {
+    const year = new Date().getFullYear();
+    if (mode === "day") return "";
+    if (mode === "month") return "";
+    if (mode === "quarter") return `q1.${year}`;
+    if (mode === "year") return String(year);
+  }
+  // если уже валидно — оставляем
+  if (validateDateValue(v) === "") return v;
+
+  // пробуем извлечь год и т.д.
+  const y = extractYear(v) || new Date().getFullYear();
+  if (mode === "year") return String(y);
+  if (mode === "quarter") return `q1.${y}`;
+  if (mode === "month") return `01.${y}`;
+  if (mode === "day") return ""; // пусть пользователь выберет в календаре
+  return v;
 }
