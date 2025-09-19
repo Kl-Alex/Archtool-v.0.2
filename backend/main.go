@@ -48,104 +48,277 @@ func main() {
 
 
 	// Защищённая группа маршрутов
-	authRoutes := router.Group("/api")
-	authRoutes.Use(middleware.JWTAuthMiddleware())
-	authRoutes.Use(middleware.ActionLogger(dbConn))
+	// ...
+authRoutes := router.Group("/api")
+authRoutes.Use(middleware.JWTAuthMiddleware())
+authRoutes.Use(middleware.ActionLogger(dbConn))
 
-	// Пример защищённого маршрута
-	authRoutes.GET("/protected", func(c *gin.Context) {
-		userID, _ := c.Get("userID")
-		c.JSON(http.StatusOK, gin.H{"message": "Добро пожаловать!", "user_id": userID})
-	})
+// Пример защищённого маршрута
+authRoutes.GET("/protected", func(c *gin.Context) {
+    userID, _ := c.Get("userID")
+    c.JSON(http.StatusOK, gin.H{"message": "Добро пожаловать!", "user_id": userID})
+})
 
-	// Роуты для бизнес-способностей
-	authRoutes.GET("/business_capabilities/:id", handlers.GetBusinessCapabilityByID)
-	authRoutes.PUT("/business_capabilities/:id", handlers.UpdateBusinessCapability)
-	authRoutes.GET("/business_capabilities", handlers.GetBusinessCapabilities)
-	authRoutes.POST("/business_capabilities", handlers.CreateBusinessCapability)
-	authRoutes.DELETE("/business_capabilities/:id", handlers.DeleteBusinessCapability)
-	authRoutes.GET("/object_types", handlers.GetObjectTypes(dbConn))
-    authRoutes.GET("/object_types/:id/attributes", handlers.GetAttributesByObjectType(dbConn))
-	authRoutes.POST("/object_types/:id/attributes", handlers.CreateAttribute(dbConn))
-	authRoutes.DELETE("/attributes/:id", handlers.DeleteAttribute(dbConn))
+// ---------- Бизнес-способности ----------
+authRoutes.GET("/business_capabilities",
+    middleware.RequirePermission(dbConn, "read", "business_capability"),
+    handlers.GetBusinessCapabilities,
+)
+authRoutes.GET("/business_capabilities/:id",
+    middleware.RequirePermission(dbConn, "read", "business_capability"),
+    handlers.GetBusinessCapabilityByID,
+)
+authRoutes.POST("/business_capabilities",
+    middleware.RequirePermission(dbConn, "create", "business_capability"),
+    handlers.CreateBusinessCapability,
+)
+authRoutes.PUT("/business_capabilities/:id",
+    middleware.RequirePermission(dbConn, "update", "business_capability"),
+    handlers.UpdateBusinessCapability,
+)
+authRoutes.DELETE("/business_capabilities/:id",
+    middleware.RequirePermission(dbConn, "delete", "business_capability"),
+    handlers.DeleteBusinessCapability,
+)
 
-	authRoutes.GET("/roles", handlers.GetRoles(dbConn))
-	authRoutes.GET("/users", handlers.GetUsers(dbConn))
-	authRoutes.POST("/users/:id/roles", handlers.AssignRoleToUser(dbConn))
+// ---------- Объектные типы / атрибуты ----------
+authRoutes.GET("/object_types",
+    middleware.RequirePermission(dbConn, "read", "attribute"),
+    handlers.GetObjectTypes(dbConn),
+)
+authRoutes.GET("/object_types/:id/attributes",
+    middleware.RequirePermission(dbConn, "read", "attribute"),
+    handlers.GetAttributesByObjectType(dbConn),
+)
+authRoutes.POST("/object_types/:id/attributes",
+    middleware.RequirePermission(dbConn, "create", "attribute"),
+    handlers.CreateAttribute(dbConn),
+)
+authRoutes.DELETE("/attributes/:id",
+    middleware.RequirePermission(dbConn, "delete", "attribute"),
+    handlers.DeleteAttribute(dbConn),
+)
+authRoutes.POST("/objects/:object_id/attributes/:attribute_id/value",
+    middleware.RequirePermission(dbConn, "update", "attribute"),
+    handlers.SetAttributeValue(dbConn),
+)
+authRoutes.PUT("/objects/:type/:id",
+    middleware.RequirePermission(dbConn, "update", "attribute"),
+    handlers.UpdateObject,
+)
 
-	authRoutes.GET("/permissions", handlers.GetAllPermissions(dbConn))
-	authRoutes.GET("/roles/:id/permissions", handlers.GetPermissionsForRole(dbConn))
-	authRoutes.POST("/roles/:id/permissions", handlers.AssignPermissionToRole(dbConn))
-	authRoutes.PUT("/permissions/:id", handlers.UpdatePermission(dbConn))
-	authRoutes.DELETE("/permissions/:id", handlers.DeletePermission(dbConn))
+// ---------- Роли / пользователи / permissions ----------
+authRoutes.GET("/roles",
+    middleware.RequirePermission(dbConn, "read", "role"),
+    handlers.GetRoles(dbConn),
+)
+authRoutes.GET("/roles/:id/permissions",
+    middleware.RequirePermission(dbConn, "read", "role"),
+    handlers.GetPermissionsForRole(dbConn),
+)
+authRoutes.POST("/roles/:id/permissions",
+    middleware.RequirePermission(dbConn, "update", "role"),
+    handlers.AssignPermissionToRole(dbConn),
+)
+authRoutes.DELETE("/roles/:role_id/permissions/:permission_id",
+    middleware.RequirePermission(dbConn, "update", "role"),
+    handlers.RemovePermissionFromRole(dbConn),
+)
 
-	authRoutes.DELETE("/roles/:role_id/permissions/:permission_id", handlers.RemovePermissionFromRole(dbConn))
-	authRoutes.POST("/objects/:object_id/attributes/:attribute_id/value", handlers.SetAttributeValue(dbConn))
+authRoutes.GET("/permissions",
+    middleware.RequirePermission(dbConn, "read", "role"),
+    handlers.GetAllPermissions(dbConn),
+)
+authRoutes.PUT("/permissions/:id",
+    middleware.RequirePermission(dbConn, "update", "role"),
+    handlers.UpdatePermission(dbConn),
+)
+authRoutes.DELETE("/permissions/:id",
+    middleware.RequirePermission(dbConn, "delete", "role"),
+    handlers.DeletePermission(dbConn),
+)
+
+authRoutes.GET("/users",
+    middleware.RequirePermission(dbConn, "read", "user"),
+    handlers.GetUsers(dbConn),
+)
+authRoutes.POST("/users/:id/roles",
+    middleware.RequirePermission(dbConn, "update", "role"),
+    handlers.AssignRoleToUser(dbConn),
+)
+
+authRoutes.GET("/users/:id/roles",
+    middleware.RequirePermission(dbConn, "read", "user"),
+    handlers.GetUserRoles(dbConn),
+)
+authRoutes.DELETE("/users/:id/roles/:role_id",
+    middleware.RequirePermission(dbConn, "update", "role"),
+    handlers.RemoveRoleFromUser(dbConn),
+)
 
 
 
-	authRoutes.GET("/applications", handlers.GetApplications)
-	authRoutes.GET("/applications/:id", handlers.GetApplicationByID)
-	authRoutes.POST("/applications", handlers.CreateApplication)
-	authRoutes.PUT("/applications/:id", handlers.UpdateApplication )
-	authRoutes.DELETE("/applications/:id", handlers.DeleteApplication)
+// ---------- Логи ----------
+authRoutes.GET("/action_logs",
+    middleware.RequirePermission(dbConn, "read", "log"),
+    handlers.GetActionLogs(dbConn),
+)
 
-	authRoutes.GET("/dictionaries/:name", handlers.GetDictionaryValues(dbConn))
-	authRoutes.POST("/dictionaries/:name", handlers.AddDictionaryValue(dbConn))
-	authRoutes.DELETE("/dictionaries/:name/:id", handlers.DeleteDictionaryValue(dbConn))
-	authRoutes.GET("/dictionaries", handlers.ListDictionaries(dbConn))
-	router.POST("/api/assistant", handlers.AssistantHandler)
-
-
-
-
-	authRoutes.GET("/action_logs", handlers.GetActionLogs(dbConn))
-
-
-
-	// Диаграммы (создание, чтение, обновление с версиями, удаление)
+// ---------- Диаграммы ----------
 dh := handlers.NewDiagramsHandler()
-
-authRoutes.GET("/diagrams", dh.ListDiagrams)                      // список + поиск + пагинация
-authRoutes.POST("/diagrams", dh.CreateDiagram)                    // создать
-authRoutes.GET("/diagrams/:id", dh.GetDiagram)                    // получить по id
-authRoutes.PUT("/diagrams/:id", dh.UpdateDiagram)                 // обновить (поддерживает If-Match: <version>)
-authRoutes.DELETE("/diagrams/:id", dh.DeleteDiagram)              // удалить
-
-// История версий диаграмм
-authRoutes.GET("/diagrams/:id/versions", dh.ListVersions)         // список версий
-authRoutes.GET("/diagrams/:id/versions/:version", dh.GetVersion)  // конкретная версия
+authRoutes.GET("/diagrams",
+    middleware.RequirePermission(dbConn, "read", "diagram"),
+    dh.ListDiagrams,
+)
+authRoutes.GET("/diagrams/:id",
+    middleware.RequirePermission(dbConn, "read", "diagram"),
+    dh.GetDiagram,
+)
+authRoutes.POST("/diagrams",
+    middleware.RequirePermission(dbConn, "create", "diagram"),
+    dh.CreateDiagram,
+)
+authRoutes.PUT("/diagrams/:id",
+    middleware.RequirePermission(dbConn, "update", "diagram"),
+    dh.UpdateDiagram,
+)
+authRoutes.DELETE("/diagrams/:id",
+    middleware.RequirePermission(dbConn, "delete", "diagram"),
+    dh.DeleteDiagram,
+)
+authRoutes.GET("/diagrams/:id/versions",
+    middleware.RequirePermission(dbConn, "read", "diagram"),
+    dh.ListVersions,
+)
+authRoutes.GET("/diagrams/:id/versions/:version",
+    middleware.RequirePermission(dbConn, "read", "diagram"),
+    dh.GetVersion,
+)
 
 dbh := handlers.NewDiagramBindingsHandler()
-authRoutes.POST("/diagrams/:id/bindings", dbh.CreateBinding)
-authRoutes.GET("/diagrams/:id/bindings", dbh.GetBindingByCell)
-authRoutes.DELETE("/diagrams/:id/bindings", dbh.DeleteBindingByCell)
+authRoutes.POST("/diagrams/:id/bindings",
+    middleware.RequirePermission(dbConn, "update", "diagram"),
+    dbh.CreateBinding,
+)
+authRoutes.GET("/diagrams/:id/bindings",
+    middleware.RequirePermission(dbConn, "read", "diagram"),
+    dbh.GetBindingByCell,
+)
+authRoutes.DELETE("/diagrams/:id/bindings",
+    middleware.RequirePermission(dbConn, "update", "diagram"),
+    dbh.DeleteBindingByCell,
+)
 
-authRoutes.GET("/technologies", handlers.GetTechnologies)
-authRoutes.GET("/technologies/:id", handlers.GetTechnologyByID)
-authRoutes.POST("/technologies", handlers.CreateTechnology)
-authRoutes.PUT("/technologies/:id", handlers.UpdateTechnology)
-authRoutes.DELETE("/technologies/:id", handlers.DeleteTechnology)
+// ---------- Приложения ----------
+authRoutes.GET("/applications",
+    middleware.RequirePermission(dbConn, "read", "application"),
+    handlers.GetApplications,
+)
+authRoutes.GET("/applications/:id",
+    middleware.RequirePermission(dbConn, "read", "application"),
+    handlers.GetApplicationByID,
+)
+authRoutes.POST("/applications",
+    middleware.RequirePermission(dbConn, "create", "application"),
+    handlers.CreateApplication,
+)
+authRoutes.PUT("/applications/:id",
+    middleware.RequirePermission(dbConn, "update", "application"),
+    handlers.UpdateApplication,
+)
+authRoutes.DELETE("/applications/:id",
+    middleware.RequirePermission(dbConn, "delete", "application"),
+    handlers.DeleteApplication,
+)
 
-authRoutes.GET("/platforms", handlers.GetPlatforms)
-authRoutes.GET("/platforms/:id", handlers.GetPlatformByID)
-authRoutes.POST("/platforms", handlers.CreatePlatform)
-authRoutes.PUT("/platforms/:id", handlers.UpdatePlatform)
-authRoutes.DELETE("/platforms/:id", handlers.DeletePlatform)
+// ---------- Технологии ----------
+authRoutes.GET("/technologies",
+    middleware.RequirePermission(dbConn, "read", "technology"),
+    handlers.GetTechnologies,
+)
+authRoutes.GET("/technologies/:id",
+    middleware.RequirePermission(dbConn, "read", "technology"),
+    handlers.GetTechnologyByID,
+)
+authRoutes.POST("/technologies",
+    middleware.RequirePermission(dbConn, "create", "technology"),
+    handlers.CreateTechnology,
+)
+authRoutes.PUT("/technologies/:id",
+    middleware.RequirePermission(dbConn, "update", "technology"),
+    handlers.UpdateTechnology,
+)
+authRoutes.DELETE("/technologies/:id",
+    middleware.RequirePermission(dbConn, "delete", "technology"),
+    handlers.DeleteTechnology,
+)
 
-authRoutes.PUT("/objects/:type/:id", handlers.UpdateObject)
+// ---------- Платформы ----------
+authRoutes.GET("/platforms",
+    middleware.RequirePermission(dbConn, "read", "platform"),
+    handlers.GetPlatforms,
+)
+authRoutes.GET("/platforms/:id",
+    middleware.RequirePermission(dbConn, "read", "platform"),
+    handlers.GetPlatformByID,
+)
+authRoutes.POST("/platforms",
+    middleware.RequirePermission(dbConn, "create", "platform"),
+    handlers.CreatePlatform,
+)
+authRoutes.PUT("/platforms/:id",
+    middleware.RequirePermission(dbConn, "update", "platform"),
+    handlers.UpdatePlatform,
+)
+authRoutes.DELETE("/platforms/:id",
+    middleware.RequirePermission(dbConn, "delete", "platform"),
+    handlers.DeletePlatform,
+)
 
-authRoutes.GET("/app_capabilities", handlers.GetAppCapabilities)
-authRoutes.GET("/app_capabilities/:id", handlers.GetAppCapabilityByID)
-authRoutes.POST("/app_capabilities", handlers.CreateAppCapability)
-authRoutes.PUT("/app_capabilities/:id", handlers.UpdateAppCapability)
-authRoutes.DELETE("/app_capabilities/:id", handlers.DeleteAppCapability)
+// ---------- Справочники ----------
+authRoutes.GET("/dictionaries",
+    middleware.RequirePermission(dbConn, "read", "dictionary"),
+    handlers.ListDictionaries(dbConn),
+)
+authRoutes.GET("/dictionaries/:name",
+    middleware.RequirePermission(dbConn, "read", "dictionary"),
+    handlers.GetDictionaryValues(dbConn),
+)
+authRoutes.POST("/dictionaries/:name",
+    middleware.RequirePermission(dbConn, "create", "dictionary"),
+    handlers.AddDictionaryValue(dbConn),
+)
+authRoutes.DELETE("/dictionaries/:name/:id",
+    middleware.RequirePermission(dbConn, "delete", "dictionary"),
+    handlers.DeleteDictionaryValue(dbConn),
+)
 
-authRoutes.GET("/initiatives", handlers.GetInitiatives)
-authRoutes.GET("/initiatives/:id", handlers.GetInitiativeByID)
-authRoutes.POST("/initiatives", handlers.CreateInitiative)
-authRoutes.PUT("/initiatives/:id", handlers.UpdateInitiative)
-authRoutes.DELETE("/initiatives/:id", handlers.DeleteInitiative)
+// ---------- Способности приложений ----------
+authRoutes.GET("/app_capabilities",
+  middleware.RequirePermission(dbConn, "read", "app_capability"),
+  handlers.GetAppCapabilities,
+)
+authRoutes.GET("/app_capabilities/:id",
+  middleware.RequirePermission(dbConn, "read", "app_capability"),
+  handlers.GetAppCapabilityByID,
+)
+authRoutes.POST("/app_capabilities",
+  middleware.RequirePermission(dbConn, "create", "app_capability"),
+  handlers.CreateAppCapability,
+)
+authRoutes.PUT("/app_capabilities/:id",
+  middleware.RequirePermission(dbConn, "update", "app_capability"),
+  handlers.UpdateAppCapability,
+)
+authRoutes.DELETE("/app_capabilities/:id",
+  middleware.RequirePermission(dbConn, "delete", "app_capability"),
+  handlers.DeleteAppCapability,
+)
+
+
+// ассистент — реши сам, нужен ли доступ всем ролям или, например, только аутентифицированным
+router.POST("/api/assistant", handlers.AssistantHandler)
+
 
 
 

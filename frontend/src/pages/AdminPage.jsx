@@ -3,6 +3,9 @@ import { getToken } from "../utils/auth";
 import Sidebar from "../components/Sidebar";
 import Notification from "../components/Notification";
 import DictionaryManager from "../components/DictionaryManager";
+import PermissionMatrix from "../components/PermissionMatrix";
+import UserRoleAssigner from "../components/UserRoleAssigner";
+
 
 export default function AdminPage() {
   // Состояния и методы
@@ -31,6 +34,9 @@ export default function AdminPage() {
   const [rolePermissions, setRolePermissions] = useState([]);
   const [notification, setNotification] = useState(null);
   const [actionLogs, setActionLogs] = useState([]);
+  const [selectedRoleForMatrix, setSelectedRoleForMatrix] = useState("");
+  const [rolePermsForMatrix, setRolePermsForMatrix] = useState([]); // [{id, action, resource}]
+
 
   const tabs = [
     { id: "roles", label: "Назначение ролей" },
@@ -199,6 +205,30 @@ export default function AdminPage() {
       setNotification({ type: "error", message: "❌ Ошибка добавления атрибута" });
     }
   };
+  const fetchRolePerms = async (roleId) => {
+    if (!roleId) { setRolePermsForMatrix([]); return; }
+    const res = await fetch(`/api/roles/${roleId}/permissions`, { headers: getAuthHeaders() });
+    setRolePermsForMatrix(res.ok ? await res.json() : []);
+  };
+
+  const toggleRolePermission = async (permId, checked) => {
+    if (!selectedRoleForMatrix) return;
+    if (checked) {
+      const res = await fetch(`/api/roles/${selectedRoleForMatrix}/permissions`, {
+        method: "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ permission_id: permId }),
+      });
+      if (res.ok) fetchRolePerms(selectedRoleForMatrix);
+    } else {
+      const res = await fetch(`/api/roles/${selectedRoleForMatrix}/permissions/${permId}`, {
+        method: "DELETE",
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) fetchRolePerms(selectedRoleForMatrix);
+    }
+  };
+
 
   return (
     <div className="flex h-screen">
@@ -227,295 +257,216 @@ export default function AdminPage() {
           <div className="bg-lentaWhite p-4 border rounded shadow">
             {tab === "roles" && (
               <div className="mt-8 ml-6">
-  <h2 className="text-xl font-semibold text-gray-800 mb-4">Назначение ролей</h2>
+                <h2 className="text-xl font-semibold text-gray-800 mb-4">Назначение ролей пользователям</h2>
+                <div className="bg-white shadow rounded-lg p-6 w-full max-w-5xl">
+                  <UserRoleAssigner users={users} roles={roles} />
+                </div>
+              </div>
+            )}
 
-  <div className="bg-white shadow rounded-lg p-6 w-full max-w-5xl">
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div>
-        <label className="block text-sm font-medium text-gray-600 mb-1">Пользователь</label>
-        <select
-          value={selectedUser}
-          onChange={(e) => setSelectedUser(e.target.value)}
-          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-        >
-          <option value="">— Выберите —</option>
-          {users.map(user => (
-            <option key={user.id} value={user.id}>{user.username}</option>
-          ))}
-        </select>
-      </div>
+            {tab === "permissions" && (
+              <div className="mt-8 ml-6">
+                <h2 className="text-xl font-semibold text-gray-800 mb-4">Права ролей</h2>
+                <div className="bg-white shadow rounded-lg p-6 w-full max-w-6xl space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">Роль</label>
+                    <select
+                      value={selectedRoleForMatrix}
+                      onChange={(e) => { setSelectedRoleForMatrix(e.target.value); fetchRolePerms(e.target.value); }}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                    >
+                      <option value="">— Выберите —</option>
+                      {roles.map(role => <option key={role.id} value={role.id}>{role.name}</option>)}
+                    </select>
+                  </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-600 mb-1">Роль</label>
-        <select
-          value={selectedRole}
-          onChange={(e) => setSelectedRole(e.target.value)}
-          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-        >
-          <option value="">— Выберите —</option>
-          {roles.map(role => (
-            <option key={role.id} value={role.id}>{role.name}</option>
-          ))}
-        </select>
-      </div>
-
-      <div className="flex items-end mt-4 md:mt-0">
-        <button
-          onClick={assignRole}
-          className="px-4 py-2 text-sm border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 rounded-md transition w-full md:w-auto"
-        >
-          Назначить
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-
+                  {selectedRoleForMatrix && (
+                    <PermissionMatrix
+                      allPermissions={permissions}              // [{id, action, resource}]
+                      assignedPermissions={rolePermsForMatrix}  // [{id, action, resource}]
+                      onToggle={toggleRolePermission}
+                    />
+                  )}
+                </div>
+              </div>
             )}
 
 
 
-{tab === "permissions" && (
-  <div className="mt-8 ml-6">
-    <h2 className="text-xl font-semibold text-gray-800 mb-4">Права ролей</h2>
-
-    <div className="bg-white shadow rounded-lg p-6 w-full max-w-5xl">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-600 mb-1">Роль</label>
-          <select
-            value={selectedRole}
-            onChange={(e) => handleSelectRoleForPermissions(e.target.value)}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-          >
-            <option value="">— Выберите —</option>
-            {roles.map(role => (
-              <option key={role.id} value={role.id}>{role.name}</option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-600 mb-1">Право</label>
-          <select
-            value={selectedPermission}
-            onChange={(e) => setSelectedPermission(e.target.value)}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-          >
-            <option value="">— Выберите —</option>
-            {permissions.map(perm => (
-              <option key={perm.id} value={perm.id}>
-                {perm.action} {perm.resource}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="flex items-end mt-4 md:mt-0">
-          <button
-            onClick={assignPermission}
-            className="px-4 py-2 text-sm border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 rounded-md transition w-full md:w-auto"
-          >
-            Назначить
-          </button>
-        </div>
-      </div>
-
-      {rolePermissions.length > 0 && (
-        <div className="mt-6">
-          <h3 className="text-sm font-medium text-gray-700 mb-2">Назначенные права</h3>
-          <ul className="space-y-1 text-sm">
-            {rolePermissions.map((perm) => (
-              <li key={perm.id} className="flex justify-between items-center border-b border-gray-100 py-1">
-                <span className="text-gray-800">{perm.action} {perm.resource}</span>
-                <button
-                  onClick={() => removePermissionFromRole(perm.id)}
-                  className="text-red-600 hover:text-red-800 text-xs"
-                >
-                  удалить
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
-  </div>
-)}
 
 
-{tab === "attributes" && (
-  <div className="mt-8 ml-6">
-    <h2 className="text-xl font-semibold text-gray-800 mb-4">Атрибуты объектов</h2>
+            {tab === "attributes" && (
+              <div className="mt-8 ml-6">
+                <h2 className="text-xl font-semibold text-gray-800 mb-4">Атрибуты объектов</h2>
 
-    <div className="bg-white shadow rounded-lg p-6 w-full max-w-7xl space-y-6">
+                <div className="bg-white shadow rounded-lg p-6 w-full max-w-7xl space-y-6">
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Тип объекта */}
-        <div>
-          <label className="block text-sm font-medium text-gray-600 mb-1">Тип объекта</label>
-          <select
-            value={selectedObjectType}
-            onChange={(e) => setSelectedObjectType(e.target.value)}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-          >
-            <option value="">— Выберите —</option>
-            {objectTypes.map((ot) => (
-              <option key={ot.id} value={ot.id}>{ot.name}</option>
-            ))}
-          </select>
-        </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* Тип объекта */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1">Тип объекта</label>
+                      <select
+                        value={selectedObjectType}
+                        onChange={(e) => setSelectedObjectType(e.target.value)}
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                      >
+                        <option value="">— Выберите —</option>
+                        {objectTypes.map((ot) => (
+                          <option key={ot.id} value={ot.id}>{ot.name}</option>
+                        ))}
+                      </select>
+                    </div>
 
-        {/* Тех. имя */}
-        <div>
-          <label className="block text-sm font-medium text-gray-600 mb-1">Тех. имя</label>
-          <input
-            type="text"
-            value={newAttrName}
-            onChange={(e) => setNewAttrName(e.target.value)}
-            placeholder="name"
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-          />
-        </div>
+                    {/* Тех. имя */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1">Тех. имя</label>
+                      <input
+                        type="text"
+                        value={newAttrName}
+                        onChange={(e) => setNewAttrName(e.target.value)}
+                        placeholder="name"
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                      />
+                    </div>
 
-        {/* Отображаемое имя */}
-        <div>
-          <label className="block text-sm font-medium text-gray-600 mb-1">Название</label>
-          <input
-            type="text"
-            value={newAttrDisplayName}
-            onChange={(e) => setNewAttrDisplayName(e.target.value)}
-            placeholder="Название"
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-          />
-        </div>
+                    {/* Отображаемое имя */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1">Название</label>
+                      <input
+                        type="text"
+                        value={newAttrDisplayName}
+                        onChange={(e) => setNewAttrDisplayName(e.target.value)}
+                        placeholder="Название"
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                      />
+                    </div>
 
-        {/* Тип атрибута */}
-        <div>
-          <label className="block text-sm font-medium text-gray-600 mb-1">Тип</label>
-          <select
-            value={newAttrType}
-            onChange={(e) => setNewAttrType(e.target.value)}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-          >
-            <option value="string">string</option>
-            <option value="number">number</option>
-            <option value="boolean">boolean</option>
-            <option value="select">select</option>
-            <option value="date">date</option>
-          </select>
-        </div>
+                    {/* Тип атрибута */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1">Тип</label>
+                      <select
+                        value={newAttrType}
+                        onChange={(e) => setNewAttrType(e.target.value)}
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                      >
+                        <option value="string">string</option>
+                        <option value="number">number</option>
+                        <option value="boolean">boolean</option>
+                        <option value="select">select</option>
+                        <option value="date">date</option>
+                      </select>
+                    </div>
 
-        {/* Формат даты */}
-        {newAttrType === "date" && (
-          <div>
-            <label className="block text-sm font-medium text-gray-600 mb-1">Формат даты</label>
-            <select
-              value={newAttrDateFormat}
-              onChange={(e) => setNewAttrDateFormat(e.target.value)}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-            >
-              <option value="">Выберите формат</option>
-              <option value="dd.mm.yyyy">дд.мм.гггг</option>
-              <option value="mm.yyyy">мм.гггг</option>
-              <option value="qn.yyyy">qn.гггг</option>
-              <option value="yyyy">гггг</option>
-            </select>
-          </div>
-        )}
-      </div>
+                    {/* Формат даты */}
+                    {newAttrType === "date" && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1">Формат даты</label>
+                        <select
+                          value={newAttrDateFormat}
+                          onChange={(e) => setNewAttrDateFormat(e.target.value)}
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                        >
+                          <option value="">Выберите формат</option>
+                          <option value="dd.mm.yyyy">дд.мм.гггг</option>
+                          <option value="mm.yyyy">мм.гггг</option>
+                          <option value="qn.yyyy">qn.гггг</option>
+                          <option value="yyyy">гггг</option>
+                        </select>
+                      </div>
+                    )}
+                  </div>
 
-      {/* select-specific настройки */}
-      {newAttrType === "select" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={newAttrIsMultiple}
-              onChange={(e) => setNewAttrIsMultiple(e.target.checked)}
-            />
-            <label className="text-sm text-gray-700">Множественный выбор</label>
-          </div>
+                  {/* select-specific настройки */}
+                  {newAttrType === "select" && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={newAttrIsMultiple}
+                          onChange={(e) => setNewAttrIsMultiple(e.target.checked)}
+                        />
+                        <label className="text-sm text-gray-700">Множественный выбор</label>
+                      </div>
 
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={useDictionary}
-              onChange={(e) => setUseDictionary(e.target.checked)}
-            />
-            <label className="text-sm text-gray-700">Привязать к справочнику</label>
-          </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={useDictionary}
+                          onChange={(e) => setUseDictionary(e.target.checked)}
+                        />
+                        <label className="text-sm text-gray-700">Привязать к справочнику</label>
+                      </div>
 
-          {useDictionary ? (
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">Справочник</label>
-              <select
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-                value={newAttrDictionaryName}
-                onChange={(e) => setNewAttrDictionaryName(e.target.value)}
-              >
-                <option value="">— Выберите —</option>
-                {availableDictionaries.map((dict) => (
-                  <option key={dict} value={dict}>{dict}</option>
-                ))}
-              </select>
-            </div>
-          ) : (
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">Опции</label>
-              <textarea
-                placeholder="Одна строка — один элемент"
-                value={newAttrOptionsText}
-                onChange={(e) => setNewAttrOptionsText(e.target.value)}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-              />
-            </div>
-          )}
-        </div>
-      )}
+                      {useDictionary ? (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-600 mb-1">Справочник</label>
+                          <select
+                            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                            value={newAttrDictionaryName}
+                            onChange={(e) => setNewAttrDictionaryName(e.target.value)}
+                          >
+                            <option value="">— Выберите —</option>
+                            {availableDictionaries.map((dict) => (
+                              <option key={dict} value={dict}>{dict}</option>
+                            ))}
+                          </select>
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-600 mb-1">Опции</label>
+                          <textarea
+                            placeholder="Одна строка — один элемент"
+                            value={newAttrOptionsText}
+                            onChange={(e) => setNewAttrOptionsText(e.target.value)}
+                            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
 
-      {/* Обязательный */}
-      <div className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          checked={newAttrIsRequired}
-          onChange={(e) => setNewAttrIsRequired(e.target.checked)}
-        />
-        <label className="text-sm text-gray-700">Обязательный</label>
-      </div>
+                  {/* Обязательный */}
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={newAttrIsRequired}
+                      onChange={(e) => setNewAttrIsRequired(e.target.checked)}
+                    />
+                    <label className="text-sm text-gray-700">Обязательный</label>
+                  </div>
 
-      {/* Кнопка */}
-      <div>
-        <button
-          className="px-4 py-2 text-sm border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 rounded-md transition"
-          onClick={addAttribute}
-        >
-          Добавить атрибут
-        </button>
-      </div>
+                  {/* Кнопка */}
+                  <div>
+                    <button
+                      className="px-4 py-2 text-sm border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 rounded-md transition"
+                      onClick={addAttribute}
+                    >
+                      Добавить атрибут
+                    </button>
+                  </div>
 
-      {/* Список атрибутов */}
-      {attributes.length > 0 && (
-        <div>
-          <h3 className="text-sm font-medium text-gray-700 mb-2">Список атрибутов</h3>
-          <ul className="divide-y divide-gray-100 text-sm">
-            {attributes.map(attr => (
-              <li key={attr.id} className="flex justify-between items-center py-1">
-                <span>{attr.display_name} <span className="text-gray-500">({attr.type})</span></span>
-                <button
-                  onClick={() => deleteAttribute(attr.id)}
-                  className="text-red-500 hover:text-red-700 text-xs"
-                >
-                  удалить
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
-  </div>
-)}
+                  {/* Список атрибутов */}
+                  {attributes.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-700 mb-2">Список атрибутов</h3>
+                      <ul className="divide-y divide-gray-100 text-sm">
+                        {attributes.map(attr => (
+                          <li key={attr.id} className="flex justify-between items-center py-1">
+                            <span>{attr.display_name} <span className="text-gray-500">({attr.type})</span></span>
+                            <button
+                              onClick={() => deleteAttribute(attr.id)}
+                              className="text-red-500 hover:text-red-700 text-xs"
+                            >
+                              удалить
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
 
             {tab === "logs" && (
