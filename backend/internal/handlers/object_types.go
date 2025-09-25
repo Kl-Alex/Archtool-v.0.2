@@ -39,9 +39,23 @@ func GetAttributesByObjectType(db *sqlx.DB) gin.HandlerFunc {
 		var attrs []models.Attribute
 		err = db.Select(&attrs, `
 			SELECT 
-				id, object_type_id, name, display_name, type, is_required, is_multiple, options::text[], dictionary_name
-			FROM attributes
-			WHERE object_type_id = $1
+				a.id,
+				a.object_type_id,
+				a.name,
+				a.display_name,
+				a.type,
+				a.is_required,
+				a.is_multiple,
+				a.options::text[]         AS options,
+				a.dictionary_name,
+				a.date_format,
+				a.group_id,
+				ag.display_name           AS group_display_name,
+				ag.sort_order             AS group_sort_order
+			FROM attributes a
+			LEFT JOIN attribute_groups ag ON ag.id = a.group_id
+			WHERE a.object_type_id = $1
+			ORDER BY ag.sort_order NULLS LAST, a.display_name
 		`, objectTypeID)
 
 		if err != nil {
@@ -50,21 +64,19 @@ func GetAttributesByObjectType(db *sqlx.DB) gin.HandlerFunc {
 			return
 		}
 
-		// Если указан dictionary_name, заменим options
+		// Если указан dictionary_name — заменим options
 		for i := range attrs {
 			if attrs[i].DictionaryName.Valid {
 				var refOptions []string
-				err := db.Select(&refOptions, `
+				if err := db.Select(&refOptions, `
 					SELECT value FROM reference_data 
-					WHERE dictionary_name = $1 ORDER BY value
-				`, attrs[i].DictionaryName.String)
-
-				if err != nil {
+					WHERE dictionary_name = $1
+					ORDER BY value
+				`, attrs[i].DictionaryName.String); err != nil {
 					log.Printf("Ошибка получения справочника '%s': %v", attrs[i].DictionaryName.String, err)
-					continue
+				} else {
+					attrs[i].Options = refOptions
 				}
-
-				attrs[i].Options = refOptions
 			}
 		}
 
@@ -75,14 +87,15 @@ func GetAttributesByObjectType(db *sqlx.DB) gin.HandlerFunc {
 
 // POST /api/object_types/:id/attributes
 type CreateAttributeInput struct {
-	Name        string   `json:"name"`
-	DisplayName string   `json:"display_name"`
-	Type        string   `json:"type"`
-	IsRequired  bool     `json:"is_required"`
-	IsMultiple  bool     `json:"is_multiple"`
-	Options     []string `json:"options"`
+	Name           string   `json:"name"`
+	DisplayName    string   `json:"display_name"`
+	Type           string   `json:"type"`
+	IsRequired     bool     `json:"is_required"`
+	IsMultiple     bool     `json:"is_multiple"`
+	Options        []string `json:"options"`
 	DictionaryName string   `json:"dictionary_name"`
 	DateFormat     string   `json:"date_format"`
+	GroupID        *int     `json:"group_id"` // НОВОЕ
 }
 
 func CreateAttribute(db *sqlx.DB) gin.HandlerFunc {
@@ -99,27 +112,41 @@ func CreateAttribute(db *sqlx.DB) gin.HandlerFunc {
 			return
 		}
 
-		if input.Name == "" || input.Type == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Имя и тип обязательны"})
+		if input.Name == "" || input.Type == "" || input.DisplayName == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Имя, отображаемое имя и тип обязательны"})
 			return
 		}
 
-_, err = db.Exec(`
-	INSERT INTO attributes (object_type_id, name, display_name, type, is_required, is_multiple, options, dictionary_name,date_format)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, NULLIF($8, ''),$9)
-`,
-	objectTypeID,
-	input.Name,
-	input.DisplayName,
-	input.Type,
-	input.IsRequired,
-	input.IsMultiple,
-	pq.Array(input.Options),
-	input.DictionaryName,
-	input.DateFormat,
-)
+		// Валидация соответствия group_id тому же object_type
+		if input.GroupID != nil {
+			var cnt int
+			if err := db.Get(&cnt, `
+				SELECT COUNT(*) FROM attribute_groups
+				WHERE id=$1 AND object_type_id=$2
+			`, *input.GroupID, objectTypeID); err != nil || cnt == 0 {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Некорректная группа для данного типа объекта"})
+				return
+			}
+		}
 
-
+		_, err = db.Exec(`
+			INSERT INTO attributes (
+				object_type_id, name, display_name, type,
+				is_required, is_multiple, options, dictionary_name, date_format, group_id
+			)
+			VALUES ($1,$2,$3,$4,$5,$6,$7, NULLIF($8,''), NULLIF($9,''), $10)
+		`,
+			objectTypeID,
+			input.Name,
+			input.DisplayName,
+			input.Type,
+			input.IsRequired,
+			input.IsMultiple,
+			pq.Array(input.Options),
+			input.DictionaryName,
+			input.DateFormat,
+			input.GroupID,
+		)
 		if err != nil {
 			log.Println("Ошибка создания атрибута:", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка создания атрибута", "details": err.Error()})
@@ -129,6 +156,7 @@ _, err = db.Exec(`
 		c.JSON(http.StatusCreated, gin.H{"message": "Атрибут успешно добавлен"})
 	}
 }
+
 
 // DELETE /api/attributes/:id
 func DeleteAttribute(db *sqlx.DB) gin.HandlerFunc {

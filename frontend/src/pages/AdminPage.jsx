@@ -5,6 +5,7 @@ import Notification from "../components/Notification";
 import DictionaryManager from "../components/DictionaryManager";
 import PermissionMatrix from "../components/PermissionMatrix";
 import UserRoleAssigner from "../components/UserRoleAssigner";
+import AttributeGroupsManager from "../components/AttributeGroupsManager";
 
 
 export default function AdminPage() {
@@ -36,6 +37,7 @@ export default function AdminPage() {
   const [actionLogs, setActionLogs] = useState([]);
   const [selectedRoleForMatrix, setSelectedRoleForMatrix] = useState("");
   const [rolePermsForMatrix, setRolePermsForMatrix] = useState([]); // [{id, action, resource}]
+  const [newAttrGroupId, setNewAttrGroupId] = useState("");
 
 
   const tabs = [
@@ -46,8 +48,16 @@ export default function AdminPage() {
     { id: "dictionaries", label: "Справочники" },
   ];
 
-
   const getAuthHeaders = () => ({ Authorization: "Bearer " + getToken() });
+  const [attrGroups, setAttrGroups] = useState([]);
+useEffect(() => {
+  if (!selectedObjectType) { setAttrGroups([]); return; }
+  fetch(`/api/object_types/${selectedObjectType}/attribute_groups`, { headers: getAuthHeaders() })
+    .then(r => r.ok ? r.json() : [])
+    .then(setAttrGroups)
+    .catch(() => setAttrGroups([]));
+}, [selectedObjectType]);
+
 
   useEffect(() => {
     const fetchData = async () => {
@@ -178,6 +188,7 @@ export default function AdminPage() {
       options: useDictionary ? [] : optionsArray,
       dictionary_name: useDictionary ? newAttrDictionaryName : "",
       date_format: newAttrType === "date" ? newAttrDateFormat : "",
+      group_id: newAttrGroupId ? parseInt(newAttrGroupId, 10) : null,
     };
 
     const res = await fetch(`/api/object_types/${selectedObjectType}/attributes`, {
@@ -205,6 +216,7 @@ export default function AdminPage() {
       setNotification({ type: "error", message: "❌ Ошибка добавления атрибута" });
     }
   };
+
   const fetchRolePerms = async (roleId) => {
     if (!roleId) { setRolePermsForMatrix([]); return; }
     const res = await fetch(`/api/roles/${roleId}/permissions`, { headers: getAuthHeaders() });
@@ -229,125 +241,145 @@ export default function AdminPage() {
     }
   };
 
+  // ---------- UI helpers (новый стиль под макет) ----------
+  const TabButton = ({ id, label }) => (
+    <button
+      key={id}
+      onClick={() => setTab(id)}
+      className={`relative rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200
+        ${tab === id
+          ? "bg-lentaBlue/10 text-lentaBlue shadow-[inset_0_-2px_0_0] shadow-lentaBlue"
+          : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"}
+      `}
+    >
+      {label}
+    </button>
+  );
+
+  const Field = ({ label, children, hint }) => (
+    <div className="space-y-1">
+      <label className="block text-xs font-semibold tracking-wide text-gray-600 uppercase">{label}</label>
+      {children}
+      {hint && <p className="text-xs text-gray-400">{hint}</p>}
+    </div>
+  );
+
+  const inputBase =
+    "w-full rounded-2xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-4 focus:ring-lentaBlue/20 focus:border-lentaBlue placeholder:text-gray-400";
+
+  const checkboxBase = "h-4 w-4 rounded border-gray-300 text-lentaBlue focus:ring-lentaBlue";
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen bg-gradient-to-b from-white to-gray-50">
       <Sidebar />
-      <main className="flex-1 p-6 bg-gray-50 min-h-screen">
-        <div className="max-w-7xl mx-auto">
-          <h1 className="text-3xl font-bold text-gray-800 mb-8">Админ-панель</h1>
-          <div className="border-b border-gray-200 mb-6">
-            <nav className="-mb-px flex space-x-8" aria-label="Tabs">
-              {tabs.map(({ id, label }) => (
-                <button
-                  key={id}
-                  onClick={() => setTab(id)}
-                  className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 ${tab === id
-                    ? "border-lentaBlue text-lentaBlue"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                    }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </nav>
+      <main className="flex-1 p-6 md:p-8 overflow-y-auto">
+        <div className="mx-auto max-w-7xl">
+          {/* Заголовок */}
+          <div className="mb-6 flex items-center justify-between">
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Админ‑панель</h1>
           </div>
 
+          {/* Табы */}
+          <div className="sticky top-0 z-10 mb-6 -mt-2 backdrop-blur supports-[backdrop-filter]:bg-white/70 supports-[backdrop-filter]:shadow-sm rounded-2xl border border-gray-200 p-2 flex flex-wrap gap-2">
+            {tabs.map(TabButton)}
+          </div>
 
-          <div className="bg-lentaWhite p-4 border rounded shadow">
+          {/* Карточка контента */}
+          <div className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm">
             {tab === "roles" && (
-              <div className="mt-8 ml-6">
-                <h2 className="text-xl font-semibold text-gray-800 mb-4">Назначение ролей пользователям</h2>
-                <div className="bg-white shadow rounded-lg p-6 w-full max-w-5xl">
+              <div className="space-y-4">
+                <h2 className="text-lg font-semibold text-gray-900">Назначение ролей пользователям</h2>
+                <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
                   <UserRoleAssigner users={users} roles={roles} />
                 </div>
               </div>
             )}
 
             {tab === "permissions" && (
-              <div className="mt-8 ml-6">
-                <h2 className="text-xl font-semibold text-gray-800 mb-4">Права ролей</h2>
-                <div className="bg-white shadow rounded-lg p-6 w-full max-w-6xl space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">Роль</label>
+              <div className="space-y-5">
+                <h2 className="text-lg font-semibold text-gray-900">Права ролей</h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Field label="Роль">
                     <select
                       value={selectedRoleForMatrix}
                       onChange={(e) => { setSelectedRoleForMatrix(e.target.value); fetchRolePerms(e.target.value); }}
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                      className={inputBase}
                     >
                       <option value="">— Выберите —</option>
                       {roles.map(role => <option key={role.id} value={role.id}>{role.name}</option>)}
                     </select>
-                  </div>
-
-                  {selectedRoleForMatrix && (
+                  </Field>
+                </div>
+                {selectedRoleForMatrix && (
+                  <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
                     <PermissionMatrix
-                      allPermissions={permissions}              // [{id, action, resource}]
-                      assignedPermissions={rolePermsForMatrix}  // [{id, action, resource}]
+                      allPermissions={permissions}
+                      assignedPermissions={rolePermsForMatrix}
                       onToggle={toggleRolePermission}
                     />
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             )}
 
-
-
-
-
             {tab === "attributes" && (
-              <div className="mt-8 ml-6">
-                <h2 className="text-xl font-semibold text-gray-800 mb-4">Атрибуты объектов</h2>
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-gray-900">Атрибуты объектов</h2>
+                </div>
 
-                <div className="bg-white shadow rounded-lg p-6 w-full max-w-7xl space-y-6">
-
+                {/* Форма создания */}
+                <div className="rounded-2xl border border-gray-200 p-4 md:p-6 bg-white/80 shadow-sm space-y-6">
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {/* Тип объекта */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">Тип объекта</label>
+                    <Field label="Тип объекта">
                       <select
                         value={selectedObjectType}
                         onChange={(e) => setSelectedObjectType(e.target.value)}
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                        className={inputBase}
                       >
                         <option value="">— Выберите —</option>
                         {objectTypes.map((ot) => (
                           <option key={ot.id} value={ot.id}>{ot.name}</option>
                         ))}
                       </select>
-                    </div>
+                    </Field>
 
-                    {/* Тех. имя */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">Тех. имя</label>
+                    <Field label="Тех. имя" hint="Латиница, без пробелов">
                       <input
                         type="text"
                         value={newAttrName}
                         onChange={(e) => setNewAttrName(e.target.value)}
                         placeholder="name"
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                        className={inputBase}
                       />
-                    </div>
+                    </Field>
 
-                    {/* Отображаемое имя */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">Название</label>
+                    <Field label="Название">
                       <input
                         type="text"
                         value={newAttrDisplayName}
                         onChange={(e) => setNewAttrDisplayName(e.target.value)}
                         placeholder="Название"
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                        className={inputBase}
                       />
-                    </div>
+                    </Field>
+                    <Field label="Группа">
+  <select
+    className={inputBase}
+    value={newAttrGroupId}
+    onChange={e => setNewAttrGroupId(e.target.value)}
+  >
+    <option value="">— Без группы —</option>
+    {attrGroups.map(g => <option key={g.id} value={g.id}>{g.display_name}</option>)}
+  </select>
+</Field>
 
-                    {/* Тип атрибута */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">Тип</label>
+
+                    <Field label="Тип">
                       <select
                         value={newAttrType}
                         onChange={(e) => setNewAttrType(e.target.value)}
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                        className={inputBase}
                       >
                         <option value="string">string</option>
                         <option value="number">number</option>
@@ -355,16 +387,14 @@ export default function AdminPage() {
                         <option value="select">select</option>
                         <option value="date">date</option>
                       </select>
-                    </div>
+                    </Field>
 
-                    {/* Формат даты */}
                     {newAttrType === "date" && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-600 mb-1">Формат даты</label>
+                      <Field label="Формат даты">
                         <select
                           value={newAttrDateFormat}
                           onChange={(e) => setNewAttrDateFormat(e.target.value)}
-                          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                          className={inputBase}
                         >
                           <option value="">Выберите формат</option>
                           <option value="dd.mm.yyyy">дд.мм.гггг</option>
@@ -372,36 +402,38 @@ export default function AdminPage() {
                           <option value="qn.yyyy">qn.гггг</option>
                           <option value="yyyy">гггг</option>
                         </select>
-                      </div>
+                      </Field>
                     )}
                   </div>
 
-                  {/* select-specific настройки */}
                   {newAttrType === "select" && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 rounded-xl border border-gray-200 p-3">
                         <input
+                          id="attr-multiple"
                           type="checkbox"
+                          className={checkboxBase}
                           checked={newAttrIsMultiple}
                           onChange={(e) => setNewAttrIsMultiple(e.target.checked)}
                         />
-                        <label className="text-sm text-gray-700">Множественный выбор</label>
+                        <label htmlFor="attr-multiple" className="text-sm text-gray-700">Множественный выбор</label>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 rounded-xl border border-gray-200 p-3">
                         <input
+                          id="attr-dict"
                           type="checkbox"
+                          className={checkboxBase}
                           checked={useDictionary}
                           onChange={(e) => setUseDictionary(e.target.checked)}
                         />
-                        <label className="text-sm text-gray-700">Привязать к справочнику</label>
+                        <label htmlFor="attr-dict" className="text-sm text-gray-700">Привязать к справочнику</label>
                       </div>
 
                       {useDictionary ? (
-                        <div>
-                          <label className="block text-sm font-medium text-gray-600 mb-1">Справочник</label>
+                        <Field label="Справочник">
                           <select
-                            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                            className={inputBase}
                             value={newAttrDictionaryName}
                             onChange={(e) => setNewAttrDictionaryName(e.target.value)}
                           >
@@ -410,105 +442,132 @@ export default function AdminPage() {
                               <option key={dict} value={dict}>{dict}</option>
                             ))}
                           </select>
-                        </div>
+                        </Field>
                       ) : (
-                        <div>
-                          <label className="block text-sm font-medium text-gray-600 mb-1">Опции</label>
+                        <Field label="Опции" hint="Одна строка — один элемент">
                           <textarea
-                            placeholder="Одна строка — один элемент"
+                            placeholder="Например: Low\nMedium\nHigh"
                             value={newAttrOptionsText}
                             onChange={(e) => setNewAttrOptionsText(e.target.value)}
-                            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                            className={`${inputBase} min-h-[116px]`}
                           />
-                        </div>
+                        </Field>
                       )}
                     </div>
                   )}
 
-                  {/* Обязательный */}
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={newAttrIsRequired}
-                      onChange={(e) => setNewAttrIsRequired(e.target.checked)}
-                    />
-                    <label className="text-sm text-gray-700">Обязательный</label>
-                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <label className="inline-flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        className={checkboxBase}
+                        checked={newAttrIsRequired}
+                        onChange={(e) => setNewAttrIsRequired(e.target.checked)}
+                      />
+                      <span className="text-sm text-gray-700">Обязательный</span>
+                    </label>
 
-                  {/* Кнопка */}
-                  <div>
                     <button
-                      className="px-4 py-2 text-sm border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 rounded-md transition"
+                      className="inline-flex items-center justify-center rounded-2xl bg-lentaBlue px-4 py-2 text-sm font-semibold text-white shadow-sm hover:brightness-110 active:brightness-95 disabled:opacity-50"
                       onClick={addAttribute}
                     >
                       Добавить атрибут
                     </button>
                   </div>
+                </div>
 
-                  {/* Список атрибутов */}
-                  {attributes.length > 0 && (
-                    <div>
-                      <h3 className="text-sm font-medium text-gray-700 mb-2">Список атрибутов</h3>
-                      <ul className="divide-y divide-gray-100 text-sm">
-                        {attributes.map(attr => (
-                          <li key={attr.id} className="flex justify-between items-center py-1">
-                            <span>{attr.display_name} <span className="text-gray-500">({attr.type})</span></span>
-                            <button
-                              onClick={() => deleteAttribute(attr.id)}
-                              className="text-red-500 hover:text-red-700 text-xs"
-                            >
-                              удалить
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
+                {/* Список атрибутов */}
+                <div className="rounded-2xl border border-gray-200 overflow-hidden">
+                  <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-gray-800">Список атрибутов</h3>
+                  </div>
+                  {attributes.length === 0 ? (
+                    <div className="p-6 text-sm text-gray-500">Нет атрибутов для выбранного типа объекта.</div>
+                  ) : (
+                    <ul className="divide-y divide-gray-100 text-sm">
+                      {attributes.map(attr => (
+                        <li key={attr.id} className="group flex items-center justify-between gap-4 px-4 py-3 hover:bg-gray-50">
+                          <div className="min-w-0">
+                            <div className="font-medium text-gray-900 truncate">{attr.display_name}
+                              <span className="ml-2 inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-700 align-middle">{attr.type}</span>
+                              {attr.is_required && (
+                                <span className="ml-2 inline-flex items-center rounded-full bg-lentaYellow/20 px-2 py-0.5 text-[11px] font-medium text-amber-700">required</span>
+                              )}
+                              {attr.is_multiple && (
+                                <span className="ml-2 inline-flex items-center rounded-full bg-lentaBlue/10 px-2 py-0.5 text-[11px] font-medium text-lentaBlue">multi</span>
+                              )}
+                            </div>
+                            <div className="mt-0.5 text-gray-500 truncate">{attr.name}</div>
+                          </div>
+                          <button
+                            onClick={() => deleteAttribute(attr.id)}
+                            className="opacity-0 group-hover:opacity-100 text-red-600 hover:text-red-700 transition-opacity text-xs"
+                          >
+                            удалить
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
                   )}
+
+                  {selectedObjectType && (
+  <AttributeGroupsManager
+    objectTypeId={parseInt(selectedObjectType, 10)}
+    onChanged={() => {
+      // после изменений групп обновим и список групп, и атрибуты
+      fetch(`/api/object_types/${selectedObjectType}/attribute_groups`, { headers: getAuthHeaders() })
+        .then(r => r.ok ? r.json() : [])
+        .then(setAttrGroups)
+        .catch(() => setAttrGroups([]));
+      fetchAttributesForObjectType(selectedObjectType);
+    }}
+    className="mt-6"
+  />
+)}
+
                 </div>
               </div>
             )}
 
-
             {tab === "logs" && (
-              <div className="text-sm">
-                <h2 className="font-semibold mb-2">Последние действия пользователей:</h2>
-                <table className="table-auto w-full border-collapse border border-gray-200">
-                  <thead>
-                    <tr className="bg-gray-100">
-                      <th className="border px-2 py-1">Пользователь</th>
-                      <th className="border px-2 py-1">Действие</th>
-                      <th className="border px-2 py-1">Объект</th>
-                      <th className="border px-2 py-1">ID объекта</th>
-                      <th className="border px-2 py-1">Было</th>
-                      <th className="border px-2 py-1">Стало</th>
-                      <th className="border px-2 py-1">Время</th>
-                      <th className="border px-2 py-1">Подробности</th>
-
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {actionLogs.map(log => (
-                      <tr key={log.id} className="hover:bg-gray-50">
-                        <td className="border px-2 py-1">{log.username || "—"}</td>
-                        <td className="border px-2 py-1">{log.action}</td>
-                        <td className="border px-2 py-1">{log.entity}</td>
-                        <td className="border px-2 py-1">{log.entity_id}</td>
-                        <td className="border px-2 py-1 text-red-600">{log.old_value || "—"}</td>
-                        <td className="border px-2 py-1 text-green-600">{log.new_value || "—"}</td>
-                        <td className="border px-2 py-1">{new Date(log.timestamp).toLocaleString()}</td>
-                        <td className="border px-2 py-1">{log.details || "—"}</td>
+              <div className="space-y-4 text-sm">
+                <h2 className="text-lg font-semibold text-gray-900">Последние действия пользователей</h2>
+                <div className="overflow-x-auto rounded-2xl border border-gray-200">
+                  <table className="min-w-full border-separate border-spacing-0">
+                    <thead>
+                      <tr className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-600">
+                        <th className="py-3 px-3 border-b border-gray-200">Пользователь</th>
+                        <th className="py-3 px-3 border-b border-gray-200">Действие</th>
+                        <th className="py-3 px-3 border-b border-gray-200">Объект</th>
+                        <th className="py-3 px-3 border-gray-200">ID объекта</th>
+                        <th className="py-3 px-3 border-gray-200">Было</th>
+                        <th className="py-3 px-3 border-gray-200">Стало</th>
+                        <th className="py-3 px-3 border-gray-200">Время</th>
+                        <th className="py-3 px-3 border-gray-200">Подробности</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {actionLogs.map(log => (
+                        <tr key={log.id} className="hover:bg-gray-50">
+                          <td className="py-2.5 px-3 border-t border-gray-100">{log.username || "—"}</td>
+                          <td className="py-2.5 px-3 border-t border-gray-100">{log.action}</td>
+                          <td className="py-2.5 px-3 border-t border-gray-100">{log.entity}</td>
+                          <td className="py-2.5 px-3 border-t border-gray-100">{log.entity_id}</td>
+                          <td className="py-2.5 px-3 border-t border-gray-100 text-red-600">{log.old_value || "—"}</td>
+                          <td className="py-2.5 px-3 border-t border-gray-100 text-green-600">{log.new_value || "—"}</td>
+                          <td className="py-2.5 px-3 border-t border-gray-100">{new Date(log.timestamp).toLocaleString()}</td>
+                          <td className="py-2.5 px-3 border-t border-gray-100">{log.details || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
+
             {tab === "dictionaries" && (
               <DictionaryManager />
             )}
-
-
-
 
             {notification && (
               <Notification

@@ -107,6 +107,11 @@ authRoutes.PUT("/objects/:type/:id",
     handlers.UpdateObject,
 )
 
+authRoutes.GET("/object_types/:id/attribute_groups", middleware.RequirePermission(dbConn, "read", "attribute"), handlers.GetAttributeGroups(dbConn))
+authRoutes.POST("/object_types/:id/attribute_groups", middleware.RequirePermission(dbConn, "create", "attribute"), handlers.CreateAttributeGroup(dbConn))
+authRoutes.PUT("/attribute_groups/:groupID", middleware.RequirePermission(dbConn, "update", "attribute"), handlers.UpdateAttributeGroup(dbConn))
+authRoutes.DELETE("/attribute_groups/:groupID", middleware.RequirePermission(dbConn, "delete", "attribute"), handlers.DeleteAttributeGroup(dbConn))
+
 // ---------- Роли / пользователи / permissions ----------
 authRoutes.GET("/roles",
     middleware.RequirePermission(dbConn, "read", "role"),
